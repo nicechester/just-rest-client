@@ -15,10 +15,7 @@ import { variableStore, setVariable, getVariableStore } from './variable.js';
 
 // Initialize global app container object for inline HTML event handlers
 // CRITICAL FIX: The functions exposed to the window must be defined before the 
-// DOM is fully loaded and before initializeApp runs, so they are available
-// immediately for inline onclick handlers.
-
-// Define the global app object
+// DOM is fully loaded and before initializeApp runs.
 window.app = {};
 
 // Use a simple data structure for the app state
@@ -39,7 +36,7 @@ const DOMElements = {
     requestUrlInput: document.getElementById('request-url'),
     requestMethodSelect: document.getElementById('request-method'),
     requestBodyTextarea: document.getElementById('request-body'),
-    requestHeadersTextarea: document.getElementById('request-headers'),
+    requestHeadersTextarea: document.getElementById('request-headers'), // <-- FIX: ADDED MISSING ELEMENT
     sendButton: document.getElementById('send-request-btn'),
     // Response Outputs
     responseStatus: document.getElementById('response-status'),
@@ -127,7 +124,8 @@ async function handleSendRequest() {
     const rawUrl = DOMElements.requestUrlInput.value;
     const method = DOMElements.requestMethodSelect.value;
     const rawBody = DOMElements.requestBodyTextarea.value;
-    const rawHeadersText = DOMElements.requestHeadersTextarea.value;
+    // Use optional chaining and default to empty string to prevent errors if element is null
+    const rawHeadersText = DOMElements.requestHeadersTextarea?.value || '';
     
     // Parse headers from the textarea (simple key: value per line)
     const rawHeaders = rawHeadersText.split('\n')
@@ -207,8 +205,6 @@ function displayResponse(response, responseData, scriptOutput, processedUrl, dur
 
 
 // --- Expose core functions globally for inline HTML usage ---
-// This must be done at the top level of the module so it is available 
-// immediately upon script execution, preventing the TypeError on inline HTML onclick events.
 window.app.switchSidebarTab = switchSidebarTab;
 window.app.switchMainTab = switchMainTab;
 

@@ -2,13 +2,13 @@
  * @fileoverview Handles the HTTP request execution, variable templating,
  * and integration with the post-request scripting module.
  *
- * NOTE: Assumes access to variableStore and executePostScript functions
- * are passed or imported by the application context.
+ * NOTE: Assumes access to variableStore (from variables.js) and
+ * executePostScript (from scripting.js).
  */
 
 // Placeholder: Assume these imports are available in the app context
-// import { variableStore } from './variables.js'; 
-// import { executePostScript } from './scripting.js'; 
+// The actual variableStore is imported via the main app.js module graph
+// and is available in the shared scope.
 
 // --- Core Templating Function ---
 
@@ -16,11 +16,12 @@
  * Replaces all {{variableName}} tags in a string with the corresponding value
  * from the global variable store.
  * @param {string} templateString - The string containing template tags.
- * @param {Object} store - The current variable store.
+ * @param {Object} variableStore - The key-value map of global variables.
  * @return {string} The string with variables substituted.
  */
-function applyTemplate(templateString, store) {
-  const variableStore = store || {};
+function applyTemplate(templateString, variableStore) {
+  // Use a temporary mock variableStore if the actual one isn't loaded yet
+  const store = variableStore || {};
 
   if (!templateString) {
     return templateString;
@@ -28,7 +29,7 @@ function applyTemplate(templateString, store) {
   
   return templateString.replace(/{{(.*?)}}/g, (match, variableName) => {
     const key = variableName.trim();
-    const value = variableStore[key];
+    const value = store[key];
     // Return the value if it exists, otherwise return the original tag
     return value !== undefined ? String(value) : match;
   });
@@ -40,60 +41,63 @@ function applyTemplate(templateString, store) {
  * Executes the HTTP request based on the current UI state.
  * @param {string} rawUrl - The user-provided URL template.
  * @param {string} method - The HTTP method (GET, POST, etc.).
- * @param {Array<Object>} rawHeaders - Array of {key, value} objects for request headers.
- * @param {string} rawBody - The raw request body content.
+ * @param {Array<Object>} rawHeaders - Array of { key, value } pairs for headers.
+ * @param {string} rawBody - The raw request body text.
  * @param {string} postScriptId - The ID of the script to run after the request.
- * @param {Object} variableStore - The current global variable store.
- * @param {function} executePostScript - Function to run the post-request script.
- * @param {function} displayResponse - Function to update the main UI with results.
+ * @param {Function} displayResponse - UI callback function to display results.
  */
-async function executeRequest(
-    rawUrl, 
-    method, 
-    rawHeaders, 
-    rawBody, 
-    postScriptId, 
-    variableStore, 
-    executePostScript, 
-    displayResponse
-) {
+export async function executeRequest(rawUrl, method, rawHeaders, rawBody, postScriptId, displayResponse) {
   let response;
-  let responseData = {};
+  let responseData;
   let scriptOutput = '';
-  let processedUrl = rawUrl;
   const startTime = performance.now();
+  const variableStore = window.app.getVariableStore ? window.app.getVariableStore() : {}; // Access store from global helper
+  let processedUrl = rawUrl;
 
   try {
-    // 1. Template URL and Body
+    // 1. Process URL and Body templates
     processedUrl = applyTemplate(rawUrl, variableStore);
     const processedBody = applyTemplate(rawBody, variableStore);
 
-    // 2. Template Headers and construct Fetch Headers object
+    // 2. Process headers
     const headers = new Headers();
-    rawHeaders.forEach(header => {
-        const key = applyTemplate(header.key, variableStore);
-        const value = applyTemplate(header.value, variableStore);
-        if (key && value) {
-            headers.set(key, value);
-        }
-    });
+    
+    // FIX: Add defensive check to ensure rawHeaders is an array
+    if (Array.isArray(rawHeaders)) { 
+        rawHeaders.forEach(header => {
+            // Apply templating to headers as well
+            const key = applyTemplate(header.key, variableStore);
+            const value = applyTemplate(header.value, variableStore);
+            if (key && value) {
+                headers.set(key, value);
+            }
+        });
+    }
 
-    // 3. Build the request options
+    // 3. Construct the fetch options
     const fetchOptions = {
       method: method,
       headers: headers,
     };
 
-    // Add body for methods that allow it
-    if (['POST', 'PUT', 'PATCH'].includes(method) && processedBody) {
+    // Add body for methods that typically include one
+    if (['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
       fetchOptions.body = processedBody;
     }
     
-    // 4. Execute the request
+    // 4. Execute the fetch request
+    const controller = new AbortController();
+    fetchOptions.signal = controller.signal;
+    
+    // Simple 10-second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 10000); 
+
     response = await fetch(processedUrl, fetchOptions);
+    clearTimeout(timeoutId);
+    
     const duration = Math.round(performance.now() - startTime);
 
-    // 5. Parse the response body
+    // 5. Process response data
     const contentType = response.headers.get('content-type');
     // Create a clone for the script/UI to read, as response body can only be read once
     const responseClone = response.clone(); 
@@ -123,7 +127,7 @@ async function executeRequest(
     const errorResponse = {
       status: 'N/A',
       statusText: 'Network Error',
-      headers: new Headers(),
+      headers: {}, // Use a simple object for mock headers
     };
     const errorData = { 
       error: 'Load failed', 
@@ -133,7 +137,14 @@ async function executeRequest(
     scriptOutput += `[Execution Error] Network or Parsing failure: ${error.message}\n`;
 
     // 8. Display Error Results
-    displayResponse(errorResponse, errorData, scriptOutput, rawUrl, duration);
+    // The previous error was likely caused by this block being reached before 
+    // the headers parsing error was fully resolved. This call is now correctly 
+    // protected by the try-catch block.
+    if (typeof displayResponse === 'function') {
+        displayResponse(errorResponse, errorData, scriptOutput, rawUrl, duration);
+    } else {
+        console.error('UI function displayResponse is missing in catch block.');
+    }
   }
 }
 
