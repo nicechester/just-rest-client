@@ -2,8 +2,8 @@
  * @fileoverview Handles the HTTP request execution, variable templating,
  * and integration with the post-request scripting module.
  *
- * NOTE: Assumes access to variableStore (from variables.js) and
- * executePostScript (from scripting.js).
+ * NOTE: Assumes access to variableStore and executePostScript functions
+ * are passed or imported by the application context.
  */
 
 // Placeholder: Assume these imports are available in the app context
@@ -16,11 +16,11 @@
  * Replaces all {{variableName}} tags in a string with the corresponding value
  * from the global variable store.
  * @param {string} templateString - The string containing template tags.
+ * @param {Object} store - The current variable store.
  * @return {string} The string with variables substituted.
  */
-function applyTemplate(templateString) {
-  // Use a temporary mock variableStore if the actual one isn't loaded yet
-  const store = typeof variableStore !== 'undefined' ? variableStore : {};
+function applyTemplate(templateString, store) {
+  const variableStore = store || {};
 
   if (!templateString) {
     return templateString;
@@ -28,7 +28,7 @@ function applyTemplate(templateString) {
   
   return templateString.replace(/{{(.*?)}}/g, (match, variableName) => {
     const key = variableName.trim();
-    const value = store[key];
+    const value = variableStore[key];
     // Return the value if it exists, otherwise return the original tag
     return value !== undefined ? String(value) : match;
   });
@@ -40,51 +40,62 @@ function applyTemplate(templateString) {
  * Executes the HTTP request based on the current UI state.
  * @param {string} rawUrl - The user-provided URL template.
  * @param {string} method - The HTTP method (GET, POST, etc.).
- * @param {Array<Object>} rawHeaders - Array of {key: string, value: string} objects.
- * @param {string} rawBody - The request body content (for POST/PUT).
- * @param {string | null} postScriptId - ID of the script to run after the request.
- * @param {function} displayResponse - Function from app.js to update the UI.
+ * @param {Array<Object>} rawHeaders - Array of {key, value} objects for request headers.
+ * @param {string} rawBody - The raw request body content.
+ * @param {string} postScriptId - The ID of the script to run after the request.
+ * @param {Object} variableStore - The current global variable store.
+ * @param {function} executePostScript - Function to run the post-request script.
+ * @param {function} displayResponse - Function to update the main UI with results.
  */
-async function executeRequest(rawUrl, method, rawHeaders, rawBody, postScriptId, displayResponse) {
-  
-  const startTime = performance.now();
+async function executeRequest(
+    rawUrl, 
+    method, 
+    rawHeaders, 
+    rawBody, 
+    postScriptId, 
+    variableStore, 
+    executePostScript, 
+    displayResponse
+) {
   let response;
-  let responseData = null;
+  let responseData = {};
   let scriptOutput = '';
+  let processedUrl = rawUrl;
+  const startTime = performance.now();
 
   try {
-    // 1. Template Processing
-    const processedUrl = applyTemplate(rawUrl);
-    
-    // 2. Prepare Headers (Crucial update for CORS and Headers)
+    // 1. Template URL and Body
+    processedUrl = applyTemplate(rawUrl, variableStore);
+    const processedBody = applyTemplate(rawBody, variableStore);
+
+    // 2. Template Headers and construct Fetch Headers object
     const headers = new Headers();
-    
-    // Add the headers from the UI (currently hardcoded in app.js for testing)
     rawHeaders.forEach(header => {
-      headers.append(header.key, applyTemplate(header.value));
+        const key = applyTemplate(header.key, variableStore);
+        const value = applyTemplate(header.value, variableStore);
+        if (key && value) {
+            headers.set(key, value);
+        }
     });
 
-    // 3. Prepare Fetch Options
-    const options = {
+    // 3. Build the request options
+    const fetchOptions = {
       method: method,
       headers: headers,
     };
 
-    // Add body only if method supports it
-    if (rawBody && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
-      options.body = applyTemplate(rawBody);
-      // Automatically set Content-Type for JSON body if not explicitly set
-      if (!headers.has('Content-Type') && options.body.trim().startsWith('{')) {
-          headers.append('Content-Type', 'application/json');
-      }
+    // Add body for methods that allow it
+    if (['POST', 'PUT', 'PATCH'].includes(method) && processedBody) {
+      fetchOptions.body = processedBody;
     }
     
-    // 4. Execute Fetch Request
-    response = await fetch(processedUrl, options);
+    // 4. Execute the request
+    response = await fetch(processedUrl, fetchOptions);
     const duration = Math.round(performance.now() - startTime);
 
-    // 5. Process Response
-    const contentType = response.headers.get('Content-Type');
+    // 5. Parse the response body
+    const contentType = response.headers.get('content-type');
+    // Create a clone for the script/UI to read, as response body can only be read once
     const responseClone = response.clone(); 
 
     if (contentType && contentType.includes('application/json')) {

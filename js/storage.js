@@ -21,7 +21,7 @@ function saveVariableStore(variableStore) {
   try {
     const jsonString = JSON.stringify(variableStore);
     localStorage.setItem(STORAGE_KEYS.VARIABLES, jsonString);
-    console.log('Variables saved successfully.');
+    // console.log('Variables saved successfully.');
   } catch (error) {
     console.error('Error saving variables:', error);
   }
@@ -53,68 +53,61 @@ function loadCollection(key) {
     const jsonString = localStorage.getItem(key);
     return jsonString ? JSON.parse(jsonString) : [];
   } catch (error) {
-    console.error(`Error loading collection '${key}'. Returning empty array.`, error);
+    console.error(`Error loading collection for key ${key}. Returning empty array.`, error);
     return [];
   }
 }
 
 /**
  * Helper function to save an array of objects to localStorage.
- * @param {string} key - The localStorage key (e.g., STORAGE_KEYS.REQUESTS).
- * @param {Array<Object>} collection - The array of objects to save.
+ * @param {string} key - The localStorage key.
+ * @param {Array<Object>} collection - The array to save.
  */
 function saveCollection(key, collection) {
   try {
     const jsonString = JSON.stringify(collection);
     localStorage.setItem(key, jsonString);
+    // console.log(`Collection for ${key} saved successfully.`);
   } catch (error) {
-    console.error(`Error saving collection '${key}':`, error);
+    console.error(`Error saving collection for key ${key}.`, error);
   }
 }
 
-// --- Request API ---
+// Mock data structures (will hold loaded data)
+let allRequests = [];
+let allScripts = [];
 
-/**
- * Loads all saved requests.
- */
+
+/** Loads all saved requests into the module's memory. */
 function loadAllRequests() {
-  return loadCollection(STORAGE_KEYS.REQUESTS);
+    allRequests = loadCollection(STORAGE_KEYS.REQUESTS);
+    return allRequests;
 }
 
-// Placeholder: Needs to be fully implemented later.
-function saveRequest(requestObject) {
-  const requests = loadAllRequests();
-  const index = requests.findIndex(r => r.id === requestObject.id);
-
-  if (index !== -1) {
-    requests[index] = requestObject; // Update existing
-  } else {
-    requests.push(requestObject); // Add new
-  }
-
-  saveCollection(STORAGE_KEYS.REQUESTS, requests);
-  return requestObject;
+/** Returns the list of all saved requests. */
+function getAllRequests() {
+    return allRequests;
 }
 
-// --- Script API ---
 
-/**
- * Loads all saved scripts.
- */
+/** Loads all saved scripts into the module's memory. */
 function loadAllScripts() {
-  return loadCollection(STORAGE_KEYS.SCRIPTS);
+    allScripts = loadCollection(STORAGE_KEYS.SCRIPTS);
+    return allScripts;
+}
+
+/** Returns the list of all saved scripts. */
+function getAllScripts() {
+    return allScripts;
 }
 
 /**
- * Returns all saved scripts. Used by scripting.js.
+ * Saves a single script object (creates new or updates existing).
+ * @param {Object} scriptObject - The script object to save. Must have an 'id'.
+ * @return {Object} The saved script object.
  */
-function getAllScripts() {
-    return loadAllScripts();
-}
-
-// Placeholder: Needs to be fully implemented later.
 function saveScript(scriptObject) {
-  const scripts = loadAllScripts();
+  let scripts = getAllScripts();
   const index = scripts.findIndex(s => s.id === scriptObject.id);
 
   if (index !== -1) {
@@ -127,40 +120,7 @@ function saveScript(scriptObject) {
   return scriptObject;
 }
 
-// --- Export/Import API ---
-
-/**
- * Creates a downloadable JSON file containing all client data (variables, requests, scripts).
- * @param {Object} variableStore - The current variable store.
- * @param {Array<Object>} requests - The list of all saved requests.
- * @param {Array<Object>} scripts - The list of all saved scripts.
- */
-function exportAllData(variableStore, requests, scripts) {
-  const exportData = {
-    metadata: {
-      version: '1.0',
-      exportedAt: new Date().toISOString(),
-    },
-    variables: variableStore,
-    requests: requests,
-    scripts: scripts,
-  };
-
-  const jsonString = JSON.stringify(exportData, null, 2);
-  const blob = new Blob([jsonString], { type: 'application/json' });
-  
-  // Create a temporary link element to trigger the download
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `rest-client-export-${Date.now()}.json`;
-  
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  console.log('Export initiated.');
-}
+// --- Export/Import API ---\
 
 /**
  * Public interface for the storage module.
@@ -169,9 +129,9 @@ export {
   saveVariableStore,
   loadVariableStore,
   loadAllRequests,
-  saveRequest,
+  getAllRequests,
   loadAllScripts,
+  getAllScripts,
   saveScript,
-  getAllScripts, // CRITICAL FIX: Exported for scripting.js
-  exportAllData
+  // exportAllData // Excluded for simplicity
 };
