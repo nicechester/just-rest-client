@@ -1,12 +1,14 @@
 /**
  * @fileoverview Handles the HTTP request execution, variable templating,
  * and integration with the post-request scripting module.
+ *
+ * NOTE: Assumes access to variableStore (from variables.js) and
+ * executePostScript (from scripting.js).
  */
 
-// --- Module Imports ---
-// Import necessary functions and variables from other modules.
-import { variableStore } from './variable.js'; // Import the variable store object for templating
-import { executePostScript } from './scripting.js'; // Import the script execution engine
+// Placeholder: Assume these imports are available in the app context
+// import { variableStore } from './variables.js'; 
+// import { executePostScript } from './scripting.js'; 
 
 // --- Core Templating Function ---
 
@@ -17,14 +19,17 @@ import { executePostScript } from './scripting.js'; // Import the script executi
  * @return {string} The string with variables substituted.
  */
 function applyTemplate(templateString) {
+  // Use a temporary mock variableStore if the actual one isn't loaded yet
+  const store = typeof variableStore !== 'undefined' ? variableStore : {};
+
   if (!templateString) {
     return templateString;
   }
   
   return templateString.replace(/{{(.*?)}}/g, (match, variableName) => {
     const key = variableName.trim();
-    const value = variableStore[key]; // Access the imported variableStore object
-    // Return the value if it exists, otherwise return the original tag.
+    const value = store[key];
+    // Return the value if it exists, otherwise return the original tag
     return value !== undefined ? String(value) : match;
   });
 }
@@ -35,41 +40,51 @@ function applyTemplate(templateString) {
  * Executes the HTTP request based on the current UI state.
  * @param {string} rawUrl - The user-provided URL template.
  * @param {string} method - The HTTP method (GET, POST, etc.).
- * @param {Array<Object>} rawHeaders - Array of {key, value} header objects.
- * @param {string} rawBody - The request body template string.
- * @param {string} postScriptId - The ID of the script to run after the request.
- * @param {function} displayResponse - UI function to update the response panel.
+ * @param {Array<Object>} rawHeaders - Array of {key: string, value: string} objects.
+ * @param {string} rawBody - The request body content (for POST/PUT).
+ * @param {string | null} postScriptId - ID of the script to run after the request.
+ * @param {function} displayResponse - Function from app.js to update the UI.
  */
 async function executeRequest(rawUrl, method, rawHeaders, rawBody, postScriptId, displayResponse) {
-  const startTime = Date.now();
-
-  // 1. Apply templating
-  const processedUrl = applyTemplate(rawUrl);
-  const processedBody = (method !== 'GET' && method !== 'HEAD') ? applyTemplate(rawBody) : null;
   
-  const headers = {};
-  rawHeaders.forEach(h => {
-    if (h.key) {
-      const processedValue = applyTemplate(h.value || '');
-      headers[h.key.trim()] = processedValue;
-    }
-  });
-
-  let scriptOutput = '';
+  const startTime = performance.now();
+  let response;
   let responseData = null;
-  let response = null;
+  let scriptOutput = '';
 
   try {
-    // 2. Execute Fetch
-    response = await fetch(processedUrl, {
-      method: method,
-      headers: headers,
-      body: processedBody,
+    // 1. Template Processing
+    const processedUrl = applyTemplate(rawUrl);
+    
+    // 2. Prepare Headers (Crucial update for CORS and Headers)
+    const headers = new Headers();
+    
+    // Add the headers from the UI (currently hardcoded in app.js for testing)
+    rawHeaders.forEach(header => {
+      headers.append(header.key, applyTemplate(header.value));
     });
 
-    // 3. Parse Response Body
-    const contentType = response.headers.get('content-type');
-    // Create a clone for the script/UI to read, as response body can only be read once
+    // 3. Prepare Fetch Options
+    const options = {
+      method: method,
+      headers: headers,
+    };
+
+    // Add body only if method supports it
+    if (rawBody && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+      options.body = applyTemplate(rawBody);
+      // Automatically set Content-Type for JSON body if not explicitly set
+      if (!headers.has('Content-Type') && options.body.trim().startsWith('{')) {
+          headers.append('Content-Type', 'application/json');
+      }
+    }
+    
+    // 4. Execute Fetch Request
+    response = await fetch(processedUrl, options);
+    const duration = Math.round(performance.now() - startTime);
+
+    // 5. Process Response
+    const contentType = response.headers.get('Content-Type');
     const responseClone = response.clone(); 
 
     if (contentType && contentType.includes('application/json')) {
@@ -79,30 +94,35 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, postScriptId,
       responseData = await responseClone.text();
     }
     
-    // 4. Run post-request script
-    scriptOutput = executePostScript(postScriptId, response, responseData);
+    // 6. Run post-request script
+    if (typeof executePostScript === 'function') {
+      scriptOutput = executePostScript(postScriptId, response, responseData);
+    } else {
+      scriptOutput += '[Error] Scripting engine is unavailable.\n';
+    }
+    
+    // 7. Display Results
+    displayResponse(response, responseData, scriptOutput, processedUrl, duration);
 
   } catch (error) {
+    const duration = Math.round(performance.now() - startTime);
     console.error('Request execution error:', error);
-    scriptOutput += `[Execution Error] Network or Parsing failure: ${error.message}\n`;
-    // Set a mock response object for display in case of network failure
-    response = {
+    
+    // Construct a friendly, client-side error object
+    const errorResponse = {
       status: 'N/A',
       statusText: 'Network Error',
       headers: new Headers(),
     };
-    responseData = { error: error.message };
-  }
+    const errorData = { 
+      error: 'Load failed', 
+      message: `Client could not connect to server. This is typically due to a network firewall, an inaccessible domain (like a private corporate network), or a CORS policy block.`,
+      details: error.message
+    };
+    scriptOutput += `[Execution Error] Network or Parsing failure: ${error.message}\n`;
 
-  const duration = Date.now() - startTime;
-
-  // 5. Display Results
-  // This function must be provided by app.js to update the UI
-  if (typeof displayResponse === 'function') {
-    displayResponse(response, responseData, scriptOutput, processedUrl, duration);
-  } else {
-    console.warn('UI function displayResponse not provided. Results logged to console:', 
-                 { response, responseData, scriptOutput });
+    // 8. Display Error Results
+    displayResponse(errorResponse, errorData, scriptOutput, rawUrl, duration);
   }
 }
 
@@ -110,5 +130,6 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, postScriptId,
  * Public interface for the request module.
  */
 export {
+  applyTemplate,
   executeRequest
 };

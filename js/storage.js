@@ -11,41 +11,7 @@ const STORAGE_KEYS = {
   SCRIPTS: 'restClient.scripts',
 };
 
-// --- Request and Script Collection Management Helper ---
-
-/**
- * Helper function to load an array of objects from localStorage.
- * @param {string} key - The localStorage key (e.g., STORAGE_KEYS.REQUESTS).
- * @return {Array<Object>} The loaded array, or an empty array if not found.
- */
-function loadCollection(key) {
-  try {
-    const jsonString = localStorage.getItem(key);
-    const data = jsonString ? JSON.parse(jsonString) : [];
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    console.error(`Error loading collection for key: ${key}`, error);
-    return [];
-  }
-}
-
-/**
- * Helper function to save an array of objects to localStorage.
- * @param {string} key - The localStorage key.
- * @param {Array<Object>} collection - The array to save.
- */
-function saveCollection(key, collection) {
-  try {
-    const jsonString = JSON.stringify(collection);
-    localStorage.setItem(key, jsonString);
-    console.log(`Collection for key ${key} saved.`);
-  } catch (error) {
-    console.error(`Error saving collection for key: ${key}`, error);
-  }
-}
-
-
-// --- Variable Store Management ---\
+// --- Variable Store Management ---
 
 /**
  * Saves the current state of the global variable store to localStorage.
@@ -75,27 +41,49 @@ function loadVariableStore() {
   }
 }
 
-// --- Request and Script Collection Management ---\
+// --- Request and Script Collection Management ---
 
 /**
- * Retrieves all saved request objects.
- * @return {Array<Object>} The list of saved requests.
+ * Helper function to load an array of objects from localStorage.
+ * @param {string} key - The localStorage key (e.g., STORAGE_KEYS.REQUESTS).
+ * @return {Array<Object>} The loaded array, or an empty array if not found.
  */
-function getAllRequests() {
-  return loadCollection(STORAGE_KEYS.REQUESTS);
+function loadCollection(key) {
+  try {
+    const jsonString = localStorage.getItem(key);
+    return jsonString ? JSON.parse(jsonString) : [];
+  } catch (error) {
+    console.error(`Error loading collection '${key}'. Returning empty array.`, error);
+    return [];
+  }
 }
 
 /**
- * Saves or updates a single request object.
- * @param {Object} requestObject - The request object to save.
- * @return {Object} The saved request object (with an ID).
+ * Helper function to save an array of objects to localStorage.
+ * @param {string} key - The localStorage key (e.g., STORAGE_KEYS.REQUESTS).
+ * @param {Array<Object>} collection - The array of objects to save.
  */
-function saveRequest(requestObject) {
-  const requests = getAllRequests();
-  if (!requestObject.id) {
-    requestObject.id = `req-${Date.now()}`;
+function saveCollection(key, collection) {
+  try {
+    const jsonString = JSON.stringify(collection);
+    localStorage.setItem(key, jsonString);
+  } catch (error) {
+    console.error(`Error saving collection '${key}':`, error);
   }
+}
 
+// --- Request API ---
+
+/**
+ * Loads all saved requests.
+ */
+function loadAllRequests() {
+  return loadCollection(STORAGE_KEYS.REQUESTS);
+}
+
+// Placeholder: Needs to be fully implemented later.
+function saveRequest(requestObject) {
+  const requests = loadAllRequests();
   const index = requests.findIndex(r => r.id === requestObject.id);
 
   if (index !== -1) {
@@ -108,25 +96,25 @@ function saveRequest(requestObject) {
   return requestObject;
 }
 
+// --- Script API ---
+
 /**
- * Retrieves all saved script objects.
- * @return {Array<Object>} The list of saved scripts.
+ * Loads all saved scripts.
  */
-function getAllScripts() {
+function loadAllScripts() {
   return loadCollection(STORAGE_KEYS.SCRIPTS);
 }
 
 /**
- * Saves or updates a single script object.
- * @param {Object} scriptObject - The script object to save.
- * @return {Object} The saved script object (with an ID).
+ * Returns all saved scripts. Used by scripting.js.
  */
-function saveScript(scriptObject) {
-  const scripts = getAllScripts();
-  if (!scriptObject.id) {
-    scriptObject.id = `script-${Date.now()}`;
-  }
+function getAllScripts() {
+    return loadAllScripts();
+}
 
+// Placeholder: Needs to be fully implemented later.
+function saveScript(scriptObject) {
+  const scripts = loadAllScripts();
   const index = scripts.findIndex(s => s.id === scriptObject.id);
 
   if (index !== -1) {
@@ -139,7 +127,7 @@ function saveScript(scriptObject) {
   return scriptObject;
 }
 
-// --- Export/Import API ---\
+// --- Export/Import API ---
 
 /**
  * Creates a downloadable JSON file containing all client data (variables, requests, scripts).
@@ -178,13 +166,12 @@ function exportAllData(variableStore, requests, scripts) {
  * Public interface for the storage module.
  */
 export {
-  STORAGE_KEYS,
-  loadVariableStore,
   saveVariableStore,
-  getAllRequests,
+  loadVariableStore,
+  loadAllRequests,
   saveRequest,
-  getAllScripts,
+  loadAllScripts,
   saveScript,
-  exportAllData,
-  saveCollection // Export the helper function for import logic in app.js
+  getAllScripts, // CRITICAL FIX: Exported for scripting.js
+  exportAllData
 };

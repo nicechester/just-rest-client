@@ -7,10 +7,20 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/main.css">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script type="module" src="js/app.js"></script>
+    
+    <!-- CRITICAL FIX: Only import the main entry point (app.js). -->
+    <script type="module" src="js/app.js"></script> 
 </head>
 <body class="bg-gray-50 min-h-screen p-4 md:p-8">
-    <h1 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">Just REST Client</h1>
+    
+    <!-- Updated Header with Icon -->
+    <div class="flex items-center space-x-3 mb-6 border-b pb-2">
+        <!-- Placeholder for chester.png - A clean, simple "R" icon is used. -->
+        <img src="chester.png" 
+             alt="REST Client Icon" 
+             class="h-9 w-9 rounded-lg shadow-md p-1 bg-blue-600">
+        <h1 class="text-3xl font-bold text-gray-800">Just REST Client</h1>
+    </div>
 
     <div id="main-layout" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -19,124 +29,69 @@
             
             <!-- Sidebar Tab Navigation -->
             <div class="flex border border-gray-300 rounded-xl shadow-md overflow-hidden">
-                <button data-tab="variables" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('variables')">Variables</button>
-                <button data-tab="requests" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150 border-l border-r border-gray-300" onclick="window.app.switchSidebarTab('requests')">Requests</button>
-                <button data-tab="scripts" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('scripts')">Scripts</button>
+                <!-- IMPORTANT FIX: Passing 'this' reference to the handler -->
+                <button data-tab="variables" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('variables', this)">Variables</button>
+                <button data-tab="scripts" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('scripts', this)">Scripts</button>
+                <button data-tab="collections" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('collections', this)">Collections</button>
             </div>
-
-            <!-- Sidebar Tab Content Panel -->
-            <div class="bg-white p-4 rounded-xl shadow-lg border border-gray-200 min-h-[300px]">
-                
-                <!-- Variables Tab Content -->
-                <div id="tab-panel-variables" data-panel="variables" class="tab-panel space-y-4">
-                    <h2 class="text-xl font-semibold mb-3 text-gray-700">Environment Variables</h2>
-                    <div id="variables-list" class="space-y-2 text-sm max-h-40 overflow-y-auto">
-                        <!-- Variables will be rendered here -->
-                    </div>
-                    <div class="mt-4 flex space-x-1">
-                        <input type="text" id="var-key-input" placeholder="Key" class="w-1/3 p-2 border rounded-lg text-sm focus:outline-none">
-                        <input type="text" id="var-value-input" placeholder="Value" class="flex-1 p-2 border rounded-lg text-sm focus:outline-none">
-                        <button id="add-var-btn" class="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition duration-150 text-sm min-w-[70px]">Set</button>
-                    </div>
+            
+            <!-- Sidebar Content Area (Needs to be implemented) -->
+            <div id="sidebar-content" class="p-4 bg-white rounded-xl shadow-md min-h-[300px]">
+                <!-- Variable tab content placeholder -->
+                <div data-content="variables">
+                    <h3 class="font-semibold text-gray-800 mb-3">Global Variables</h3>
+                    <!-- Placeholder for the variable table/editor -->
+                    <p class="text-sm text-gray-500">Variable editor UI will go here.</p>
                 </div>
-
-                <!-- Saved Requests Tab Content -->
-                <div id="tab-panel-requests" data-panel="requests" class="tab-panel hidden space-y-4">
-                    <h2 class="text-xl font-semibold mb-3 text-gray-700">Saved Requests</h2>
-                    <div id="requests-list" class="space-y-2 text-sm max-h-64 overflow-y-auto">
-                        <!-- Saved requests will be loaded here -->
-                        <p class="text-gray-500">No requests saved.</p>
-                    </div>
-                </div>
-                
-                <!-- Saved Scripts Tab Content -->
-                <div id="tab-panel-scripts" data-panel="scripts" class="tab-panel hidden space-y-4">
-                    <h2 class="text-xl font-semibold mb-3 text-gray-700">Post-Request Scripts</h2>
-                    <div id="scripts-list" class="space-y-2 text-sm max-h-64 overflow-y-auto">
-                        <!-- Saved scripts will be loaded here -->
-                        <p class="text-gray-500">No scripts saved.</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Export/Import -->
-            <div class="bg-white p-4 rounded-xl shadow-lg border border-gray-200 flex space-x-2">
-                <button id="export-btn" class="flex-1 bg-green-500 text-white p-3 rounded-lg hover:bg-green-600 transition">Export All</button>
-                <input type="file" id="import-file" accept="application/json" class="hidden" onchange="window.app.handleImport(event)">
-                <button id="import-btn" class="flex-1 bg-yellow-500 text-white p-3 rounded-lg hover:bg-yellow-600 transition">Import</button>
             </div>
 
         </aside>
 
-        <!-- Main Workspace (Request/Response Tabs) -->
-        <main class="col-span-1 lg:col-span-2 space-y-4">
-            
-            <!-- Main Tab Navigation -->
+        <!-- Main Request/Response Area -->
+        <main class="col-span-1 lg:col-span-2 space-y-6">
+
+            <!-- Main Tab Navigation (Request/Response) -->
             <div class="flex border border-gray-300 rounded-xl shadow-md overflow-hidden">
-                <button data-main-tab="request" class="main-tab-button flex-1 py-3 text-base font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150 border-r border-gray-300" onclick="window.app.switchMainTab('request')">Request Details</button>
-                <button data-main-tab="response" class="main-tab-button flex-1 py-3 text-base font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchMainTab('response')">Response Viewer</button>
+                <button data-tab="request" class="main-tab-button flex-1 py-3 text-base font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchMainTab('request', this)">Request</button>
+                <button data-tab="response" class="main-tab-button flex-1 py-3 text-base font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchMainTab('response', this)">Response</button>
             </div>
 
-            <!-- Main Tab Panels -->
-            <div id="main-tab-content-area">
+            <!-- Request Tab Content (Always visible for now) -->
+            <div id="request-content" data-content="request" class="space-y-4">
                 
-                <!-- Request Details Panel -->
-                <div id="main-panel-request" data-panel="request" class="main-panel bg-white p-6 rounded-xl shadow-lg border border-gray-200 space-y-4">
-                    <h2 class="text-xl font-semibold text-gray-700">Request Builder</h2>
-                    
-                    <div class="flex space-x-2">
-                        <select id="method-select" class="w-32 p-3 border rounded-lg bg-gray-100 text-sm font-semibold focus:ring-blue-500 focus:border-blue-500">
-                            <option>GET</option>
-                            <option>POST</option>
-                            <option>PUT</option>
-                            <option>DELETE</option>
-                            <option>PATCH</option>
-                            <option>HEAD</option>
-                        </select>
-                        <input type="text" id="url-input" placeholder="Enter URL (e.g., {{baseUrl}}/users)" class="flex-1 p-3 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
-                        <button id="send-btn" class="bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-700 transition duration-150 min-w-[100px]">Send</button>
-                    </div>
-
-                    <!-- Headers -->
-                    <div class="border-t pt-4">
-                        <h3 class="font-medium text-gray-600 mb-2">Headers</h3>
-                        <div id="headers-container" class="space-y-2">
-                            <!-- Default/dynamic headers here -->
-                        </div>
-                        <button id="add-header-btn" class="mt-2 text-sm text-blue-600 hover:text-blue-800 transition">+ Add Header</button>
-                    </div>
-
-                    <!-- Body -->
-                    <div class="border-t pt-4">
-                        <h3 class="font-medium text-gray-600 mb-2">Body (POST/PUT/PATCH)</h3>
-                        <textarea id="body-textarea" placeholder='{"key": "{{value}}"}' rows="5" class="w-full p-3 border rounded-lg text-sm code-input focus:ring-blue-500 focus:border-blue-500"></textarea>
-                    </div>
-
-                    <!-- Post Script Selector/Editor -->
-                    <div class="border-t pt-4 space-y-2">
-                        <div class="flex justify-between items-center">
-                            <h3 class="font-medium text-gray-600">Post-Request Script</h3>
-                            <div class="flex space-x-2">
-                                <input type="text" id="script-name-input" placeholder="Script Name" class="p-1 border rounded-lg text-xs w-28">
-                                <button id="save-script-btn" class="bg-purple-600 text-white p-1 px-3 rounded-lg text-xs hover:bg-purple-700 transition">Save Script</button>
-                            </div>
-                        </div>
-                        <select id="post-script-select" class="w-full p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
-                            <option value="">-- Select or Edit Script --</option>
-                        </select>
-                        <textarea id="post-script-editor" rows="5" placeholder="Use setVar('newKey', responseData.token);" class="w-full p-3 border rounded-lg text-sm code-input focus:ring-purple-500 focus:border-purple-500"></textarea>
-                    </div>
-
-                    <!-- Save Request -->
-                    <div class="border-t pt-4 flex space-x-2">
-                        <input type="text" id="request-title-input" placeholder="Request Title (e.g., Get Auth Token)" class="flex-1 p-3 border rounded-lg text-sm focus:ring-green-500 focus:border-green-500">
-                        <button id="save-request-btn" class="bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 transition duration-150 min-w-[120px]">Save Request</button>
-                    </div>
+                <!-- URL and Method Input -->
+                <div class="flex space-x-2">
+                    <select id="request-method" class="p-3 border border-gray-300 rounded-xl shadow-sm bg-white focus:ring-blue-500 focus:border-blue-500 text-sm font-semibold">
+                        <option>GET</option>
+                        <option>POST</option>
+                        <option>PUT</option>
+                        <option>DELETE</option>
+                        <option>PATCH</option>
+                    </select>
+                    <input type="text" id="request-url" placeholder="Enter request URL (e.g., {{baseUrl}}/users)" value="https://jsonplaceholder.typicode.com/posts/1" class="flex-grow p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <button id="send-request-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition duration-150 ease-in-out transform hover:scale-[1.01] active:scale-[0.99]">
+                        Send Request
+                    </button>
                 </div>
 
-                <!-- Response Viewer Panel -->
-                <div id="main-panel-response" data-panel="response" class="main-panel hidden bg-white p-6 rounded-xl shadow-lg border border-gray-200 space-y-4">
-                    <h2 class="text-xl font-semibold text-gray-700 flex justify-between items-center">
+                <!-- Headers Section (Placeholder) -->
+                <div class="p-4 bg-white rounded-xl shadow-md">
+                    <h3 class="font-semibold text-gray-800 mb-3">Headers (Hardcoded Accept: application/json)</h3>
+                    <p class="text-sm text-gray-500">Header key/value pairs UI will go here.</p>
+                </div>
+
+                <!-- Body Input -->
+                <div class="p-4 bg-white rounded-xl shadow-md">
+                    <h3 class="font-semibold text-gray-800 mb-3">Request Body</h3>
+                    <textarea id="request-body" class="w-full p-4 border border-gray-300 rounded-xl code-input text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Enter request body (JSON, XML, etc.)"></textarea>
+                </div>
+
+            </div>
+
+            <!-- Response Tab Content (Always visible for now, will be hidden by app.js) -->
+            <div id="response-content" data-content="response" class="p-6 bg-white rounded-xl shadow-lg">
+                <div class="space-y-6">
+                    <h2 class="text-xl font-bold text-gray-800 flex justify-between items-center">
                         Response Details
                         <div class="text-sm font-normal space-x-3">
                             <span id="response-status" class="font-bold text-gray-500">Status: ---</span>

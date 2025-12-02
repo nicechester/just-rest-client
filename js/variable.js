@@ -3,42 +3,33 @@
  * from localStorage via the storage module.
  */
 
-// The variableStore object holds the key/value pairs
-let variableStore = {};
+// CRITICAL FIX: Explicitly import dependencies from other modules.
+import { loadVariableStore, saveVariableStore } from './storage.js'; 
 
-/**
- * Initializes the variable store from storage.
- * @param {function} loadVariableStoreFn - Function to load store from persistence.
- * @param {function} saveVariableStoreFn - Function to save store to persistence.
- */
-function loadInitialVariables(loadVariableStoreFn) {
-  if (typeof loadVariableStoreFn === 'function') {
-    variableStore = loadVariableStoreFn();
-  } else {
-    // Default variables if storage module is not available (for fallback)
+// Initialize the global variable store by loading from storage.
+let variableStore = loadVariableStore();
+
+// If nothing was loaded, initialize with defaults for user visibility
+if (Object.keys(variableStore).length === 0) {
     variableStore = {
-      'baseUrl': 'https://api.example.com',
-      'userId': '1001'
+        'baseUrl': 'https://api.example.com',
+        'userId': '1001'
     };
-  }
+    saveVariableStore(variableStore); // Save defaults immediately
 }
 
 /**
  * Updates or sets a variable in the global store and persists the change.
- * NOTE: Assumes saveVariableStoreFn is available when called from the main app.
  * @param {string} key - The name of the variable.
  * @param {string} value - The value to assign to the variable.
  */
 function setVariable(key, value) {
-  // We assume the saveVariableStore function is passed/available globally
-  // by the main application controller (app.js)
-  
   // Ensure the value is stringified for complex types if necessary, though 
   // typical API variables are usually strings.
   variableStore[key] = String(value);
 
-  // Persist the updated store to localStorage. This function MUST be imported and called by app.js.
-  // We rely on app.js to call saveVariableStore(variableStore);
+  // Persist the updated store to localStorage
+  saveVariableStore(variableStore);
 }
 
 /**
@@ -55,6 +46,5 @@ function getVariableStore() {
 export {
   variableStore, // Export the raw object for external read access (e.g., in request.js)
   setVariable,
-  getVariableStore,
-  loadInitialVariables // Export initialization function for app.js to call
+  getVariableStore
 };
