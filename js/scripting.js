@@ -24,19 +24,9 @@ function executePostScript(postScriptId, response, responseData) {
   
   if (postScriptId) {
     const scripts = getAllScripts();
-    // In a real app, 'script1' is a placeholder. Here we mock it.
     const scriptToRun = scripts.find(s => s.id === postScriptId);
-    
-    if (scriptToRun && scriptToRun.code) {
+    if (scriptToRun) {
       scriptCode = scriptToRun.code;
-    } else if (postScriptId === 'script1') {
-        // Placeholder script for demonstration if 'script1' is not found
-        scriptCode = `
-          // Example Script: Set a variable if the status is 200
-          if (response.status === 200 && responseData && responseData.id) {
-            setVar('lastPostId', responseData.id);
-          }
-        `;
     } else {
       scriptOutput += `[Script Error] Saved script with ID "${postScriptId}" not found.\n`;
       return scriptOutput;

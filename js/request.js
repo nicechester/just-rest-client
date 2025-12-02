@@ -1,14 +1,12 @@
 /**
  * @fileoverview Handles the HTTP request execution, variable templating,
  * and integration with the post-request scripting module.
- *
- * NOTE: Assumes access to variableStore (from variables.js) and
- * executePostScript (from scripting.js).
  */
 
-// Placeholder: Assume these imports are available in the app context
-// The actual variableStore is imported via the main app.js module graph
-// and is available in the shared scope.
+// --- Module Imports ---
+// Import necessary functions and variables from other modules.
+import { variableStore } from './variable.js'; // Import the variable store object for templating
+import { executePostScript } from './scripting.js'; // Import the script execution engine
 
 // --- Core Templating Function ---
 
@@ -16,21 +14,17 @@
  * Replaces all {{variableName}} tags in a string with the corresponding value
  * from the global variable store.
  * @param {string} templateString - The string containing template tags.
- * @param {Object} variableStore - The key-value map of global variables.
  * @return {string} The string with variables substituted.
  */
-function applyTemplate(templateString, variableStore) {
-  // Use a temporary mock variableStore if the actual one isn't loaded yet
-  const store = variableStore || {};
-
+function applyTemplate(templateString) {
   if (!templateString) {
     return templateString;
   }
   
   return templateString.replace(/{{(.*?)}}/g, (match, variableName) => {
     const key = variableName.trim();
-    const value = store[key];
-    // Return the value if it exists, otherwise return the original tag
+    const value = variableStore[key]; // Access the imported variableStore object
+    // Return the value if it exists, otherwise return the original tag.
     return value !== undefined ? String(value) : match;
   });
 }
@@ -41,63 +35,39 @@ function applyTemplate(templateString, variableStore) {
  * Executes the HTTP request based on the current UI state.
  * @param {string} rawUrl - The user-provided URL template.
  * @param {string} method - The HTTP method (GET, POST, etc.).
- * @param {Array<Object>} rawHeaders - Array of { key, value } pairs for headers.
- * @param {string} rawBody - The raw request body text.
+ * @param {Array<Object>} rawHeaders - Array of {key, value} header objects.
+ * @param {string} rawBody - The request body template string.
  * @param {string} postScriptId - The ID of the script to run after the request.
- * @param {Function} displayResponse - UI callback function to display results.
+ * @param {function} displayResponse - UI function to update the response panel.
  */
-export async function executeRequest(rawUrl, method, rawHeaders, rawBody, postScriptId, displayResponse) {
-  let response;
-  let responseData;
+async function executeRequest(rawUrl, method, rawHeaders, rawBody, postScriptId, displayResponse) {
+  const startTime = Date.now();
+
+  // 1. Apply templating
+  const processedUrl = applyTemplate(rawUrl);
+  const processedBody = (method !== 'GET' && method !== 'HEAD') ? applyTemplate(rawBody) : null;
+  
+  const headers = {};
+  rawHeaders.forEach(h => {
+    if (h.key) {
+      const processedValue = applyTemplate(h.value || '');
+      headers[h.key.trim()] = processedValue;
+    }
+  });
+
   let scriptOutput = '';
-  const startTime = performance.now();
-  const variableStore = window.app.getVariableStore ? window.app.getVariableStore() : {}; // Access store from global helper
-  let processedUrl = rawUrl;
+  let responseData = null;
+  let response = null;
 
   try {
-    // 1. Process URL and Body templates
-    processedUrl = applyTemplate(rawUrl, variableStore);
-    const processedBody = applyTemplate(rawBody, variableStore);
-
-    // 2. Process headers
-    const headers = new Headers();
-    
-    // FIX: Add defensive check to ensure rawHeaders is an array
-    if (Array.isArray(rawHeaders)) { 
-        rawHeaders.forEach(header => {
-            // Apply templating to headers as well
-            const key = applyTemplate(header.key, variableStore);
-            const value = applyTemplate(header.value, variableStore);
-            if (key && value) {
-                headers.set(key, value);
-            }
-        });
-    }
-
-    // 3. Construct the fetch options
-    const fetchOptions = {
+    // 2. Execute Fetch
+    response = await fetch(processedUrl, {
       method: method,
       headers: headers,
-    };
+      body: processedBody,
+    });
 
-    // Add body for methods that typically include one
-    if (['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
-      fetchOptions.body = processedBody;
-    }
-    
-    // 4. Execute the fetch request
-    const controller = new AbortController();
-    fetchOptions.signal = controller.signal;
-    
-    // Simple 10-second timeout
-    const timeoutId = setTimeout(() => controller.abort(), 10000); 
-
-    response = await fetch(processedUrl, fetchOptions);
-    clearTimeout(timeoutId);
-    
-    const duration = Math.round(performance.now() - startTime);
-
-    // 5. Process response data
+    // 3. Parse Response Body
     const contentType = response.headers.get('content-type');
     // Create a clone for the script/UI to read, as response body can only be read once
     const responseClone = response.clone(); 
@@ -109,42 +79,30 @@ export async function executeRequest(rawUrl, method, rawHeaders, rawBody, postSc
       responseData = await responseClone.text();
     }
     
-    // 6. Run post-request script
-    if (typeof executePostScript === 'function') {
-      scriptOutput = executePostScript(postScriptId, response, responseData);
-    } else {
-      scriptOutput += '[Error] Scripting engine is unavailable.\n';
-    }
-    
-    // 7. Display Results
-    displayResponse(response, responseData, scriptOutput, processedUrl, duration);
+    // 4. Run post-request script
+    scriptOutput = executePostScript(postScriptId, response, responseData);
 
   } catch (error) {
-    const duration = Math.round(performance.now() - startTime);
     console.error('Request execution error:', error);
-    
-    // Construct a friendly, client-side error object
-    const errorResponse = {
+    scriptOutput += `[Execution Error] Network or Parsing failure: ${error.message}\n`;
+    // Set a mock response object for display in case of network failure
+    response = {
       status: 'N/A',
       statusText: 'Network Error',
-      headers: {}, // Use a simple object for mock headers
+      headers: new Headers(),
     };
-    const errorData = { 
-      error: 'Load failed', 
-      message: `Client could not connect to server. This is typically due to a network firewall, an inaccessible domain (like a private corporate network), or a CORS policy block.`,
-      details: error.message
-    };
-    scriptOutput += `[Execution Error] Network or Parsing failure: ${error.message}\n`;
+    responseData = { error: error.message };
+  }
 
-    // 8. Display Error Results
-    // The previous error was likely caused by this block being reached before 
-    // the headers parsing error was fully resolved. This call is now correctly 
-    // protected by the try-catch block.
-    if (typeof displayResponse === 'function') {
-        displayResponse(errorResponse, errorData, scriptOutput, rawUrl, duration);
-    } else {
-        console.error('UI function displayResponse is missing in catch block.');
-    }
+  const duration = Date.now() - startTime;
+
+  // 5. Display Results
+  // This function must be provided by app.js to update the UI
+  if (typeof displayResponse === 'function') {
+    displayResponse(response, responseData, scriptOutput, processedUrl, duration);
+  } else {
+    console.warn('UI function displayResponse not provided. Results logged to console:', 
+                 { response, responseData, scriptOutput });
   }
 }
 
@@ -152,6 +110,5 @@ export async function executeRequest(rawUrl, method, rawHeaders, rawBody, postSc
  * Public interface for the request module.
  */
 export {
-  applyTemplate,
   executeRequest
 };
