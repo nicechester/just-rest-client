@@ -11,8 +11,7 @@ import { executePostScript } from './scripting.js';
 import { variableStore, setVariable, getVariableStore } from './variable.js';
 
 
-// --- Global Initialization ---
-
+// --- Global Initialization --
 // Initialize global app container object for inline HTML event handlers
 window.app = {};
 
@@ -22,28 +21,8 @@ const appState = {
     activeMainTab: 'request',
 };
 
-// --- DOM Element References ---
-const DOMElements = {
-    // Tabs
-    sidebarTabsContainer: document.querySelector('.col-span-1 > .flex'),
-    mainTabsContainer: document.querySelector('.lg:col-span-2 > .flex'),
-    // Content Areas
-    sidebarContentContainer: document.getElementById('sidebar-content'),
-    mainContentContainer: document.getElementById('main-content'),
-    // Request Inputs
-    requestUrlInput: document.getElementById('request-url'),
-    requestMethodSelect: document.getElementById('request-method'),
-    requestBodyTextarea: document.getElementById('request-body'),
-    requestHeadersTextarea: document.getElementById('request-headers'),
-    sendButton: document.getElementById('send-request-btn'),
-    // Response Outputs
-    responseStatus: document.getElementById('response-status'),
-    responseTime: document.getElementById('response-time'),
-    processedUrl: document.getElementById('processed-url'),
-    responseBody: document.getElementById('response-body'),
-    responseHeaders: document.getElementById('response-headers'),
-    scriptOutput: document.getElementById('script-output'),
-};
+// Global object to hold DOM elements once they are queried in initializeApp
+let DOMElements = {};
 
 // --- UI Logic ---
 
@@ -57,8 +36,9 @@ function switchSidebarTab(tabName) {
     // 1. Update tab buttons
     DOMElements.sidebarTabsContainer.querySelectorAll('.tab-button').forEach(button => {
         button.classList.remove('active');
+        button.classList.remove('text-white', 'bg-blue-500'); // Clean up existing active classes
         if (button.dataset.tab === tabName) {
-            button.classList.add('active');
+            button.classList.add('active', 'text-white', 'bg-blue-500'); // Tailwind for active state
         }
     });
 
@@ -83,8 +63,9 @@ function switchMainTab(tabName) {
     // 1. Update tab buttons
     DOMElements.mainTabsContainer.querySelectorAll('.main-tab-button').forEach(button => {
         button.classList.remove('active');
+        button.classList.remove('text-white', 'bg-blue-500'); // Clean up existing active classes
         if (button.dataset.tab === tabName) {
-            button.classList.add('active');
+            button.classList.add('active', 'text-white', 'bg-blue-500'); // Tailwind for active state
         }
     });
 
@@ -186,7 +167,8 @@ async function handleSendRequest() {
             rawHeaders = JSON.parse(DOMElements.requestHeadersTextarea.value.trim());
         }
     } catch (e) {
-        alert('Invalid JSON in Headers field. Please correct the format.');
+        // Use console.error instead of alert per instructions
+        console.error('Invalid JSON in Headers field.', e);
         setLoadingState(false);
         return;
     }
@@ -209,19 +191,43 @@ async function handleSendRequest() {
 
 // --- Initialization ---
 
-// CRITICAL FIX: Expose core functions globally immediately upon module evaluation
-// to prevent the "is not a function" error on inline HTML onclick events.
-window.app.switchSidebarTab = switchSidebarTab;
-window.app.switchMainTab = switchMainTab;
-
 /**
  * Initializes the application: loads data, sets up UI state, and attaches listeners.
  */
 function initializeApp() {
     console.log('App initializing...');
 
+    // CRITICAL FIX: Define DOMElements inside initializeApp (or after DOMContentLoaded)
+    // to prevent the SyntaxError from trying to query non-existent elements.
+    DOMElements = {
+        // Tabs
+        sidebarTabsContainer: document.querySelector('.col-span-1 > .flex'),
+        mainTabsContainer: document.querySelector('.lg\\:col-span-2 > .flex'), // Note: Escaped colon for safety
+        // Content Areas
+        sidebarContentContainer: document.getElementById('sidebar-content'),
+        mainContentContainer: document.getElementById('main-content'),
+        // Request Inputs
+        requestUrlInput: document.getElementById('request-url'),
+        requestMethodSelect: document.getElementById('request-method'),
+        requestBodyTextarea: document.getElementById('request-body'),
+        requestHeadersTextarea: document.getElementById('request-headers'),
+        sendButton: document.getElementById('send-request-btn'),
+        // Response Outputs
+        responseStatus: document.getElementById('response-status'),
+        responseTime: document.getElementById('response-time'),
+        processedUrl: document.getElementById('processed-url'),
+        responseBody: document.getElementById('response-body'),
+        responseHeaders: document.getElementById('response-headers'),
+        scriptOutput: document.getElementById('script-output'),
+    };
+    
+    // Check if the DOM elements were found before proceeding
+    if (!DOMElements.mainTabsContainer) {
+        console.error('Could not find mainTabsContainer. Check HTML structure and selectors.');
+        return;
+    }
+
     // 1. Load initial data from storage
-    // The functions are available because they are imported from storage.js and variable.js
     loadVariableStore();
     loadAllRequests();
     loadAllScripts();
@@ -231,19 +237,26 @@ function initializeApp() {
         DOMElements.sendButton.addEventListener('click', handleSendRequest);
     }
 
-    // 3. Set initial active tabs visually
+    // 3. Set initial active tabs visually and apply initial active classes
     const initialSidebarButton = DOMElements.sidebarTabsContainer.querySelector(`[data-tab="${appState.activeSidebarTab}"]`);
     if (initialSidebarButton) {
-        initialSidebarButton.classList.add('active');
+        initialSidebarButton.classList.add('active', 'text-white', 'bg-blue-500');
     }
 
     const initialMainButton = DOMElements.mainTabsContainer.querySelector(`[data-tab="${appState.activeMainTab}"]`);
     if (initialMainButton) {
-        initialMainButton.classList.add('active');
+        initialMainButton.classList.add('active', 'text-white', 'bg-blue-500');
     }
     
     console.log('App initialized.');
 }
+
+// CRITICAL FIX: Expose core functions globally immediately upon module evaluation
+// to prevent the "is not a function" error on inline HTML onclick events.
+// The functions are defined above, so this works now.
+window.app.switchSidebarTab = switchSidebarTab;
+window.app.switchMainTab = switchMainTab;
+
 
 // Run the initialization logic when the DOM is fully loaded
 document.addEventListener('DOMContentLoaded', initializeApp);
