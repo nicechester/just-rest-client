@@ -1,0 +1,35 @@
+:root {
+    font-family: 'Inter', sans-serif;
+}
+
+textarea,
+input[type="text"] {
+    font-family: monospace;
+}
+
+.code-input,
+.code-output {
+    min-height: 200px;
+    max-height: 50vh;
+    overflow-y: auto;
+    border-radius: 0.5rem;
+}
+
+/* Custom scrollbar for better visibility */
+.code-input::-webkit-scrollbar,
+.code-output::-webkit-scrollbar {
+    width: 8px;
+}
+
+.code-input::-webkit-scrollbar-thumb,
+.code-output::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.tab-button.active,
+.main-tab-button.active {
+    color: white;
+    background-color: #3b82f6;
+    /* Blue-500 */
+}
