@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Just REST Client</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/main.css">
+    <!-- Using external CSS for modularity. Tailwind is loaded below. -->
+    <link rel="stylesheet" href="css/main.css"> 
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- CRITICAL FIX: Only import the main entry point (app.js). -->
@@ -15,7 +16,8 @@
     
     <!-- Updated Header with Icon -->
     <div class="flex items-center space-x-3 mb-6 border-b pb-2">
-        <img src="https://placehold.co/36x36/3b82f6/ffffff?text=API" 
+        <!-- Placeholder for a simple icon -->
+        <img src="chester.png" 
              alt="REST Client Icon" 
              class="h-9 w-9 rounded-lg shadow-md p-1">
         <h1 class="text-3xl font-bold text-gray-800">Just REST Client</h1>
@@ -32,105 +34,77 @@
                 <button data-tab="requests" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('requests')">Requests</button>
                 <button data-tab="scripts" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('scripts')">Scripts</button>
             </div>
-            
-            <!-- Sidebar Tab Content -->
-            <div id="sidebar-content" class="bg-white p-2 rounded-xl shadow-lg border border-gray-200">
 
-                <!-- Variables Content (Global Variables Editor) -->
-                <div id="variables-content" class="p-4 space-y-4" data-content="variables">
-                    <h3 class="font-semibold text-gray-700">Global Variables</h3>
-                    <p class="text-sm text-gray-500">Variables can be used in the URL, Headers, and Body with the syntax: <code class="bg-gray-100 p-1 rounded">{'{{variableName}}'}</code></p>
-                    
-                    <div id="variable-list" class="space-y-2">
-                        <!-- Variable rows will be rendered here by variable.js -->
+            <!-- Sidebar Content (Only the Variables section shown for brevity) -->
+            <div id="sidebar-content" class="bg-white p-4 rounded-xl shadow-md space-y-4 min-h-[300px]">
+                
+                <div data-content="variables" class="sidebar-content-tab active">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Global Variables</h2>
+                    <div id="variables-list" class="space-y-3">
+                        <!-- Variable items will be dynamically inserted here -->
+                        <p class="text-gray-500 text-sm">Variables loaded from storage...</p>
                     </div>
-
-                    <button id="add-variable-btn" class="w-full py-2 px-4 text-sm font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 transition duration-150">
-                        + Add Variable
-                    </button>
                 </div>
                 
-                <!-- Requests Content (Placeholder for saved requests) -->
-                <div id="requests-content" class="p-4 space-y-3 hidden" data-content="requests">
-                    <h3 class="font-semibold text-gray-700">Saved Requests</h3>
-                    <p class="text-sm text-gray-500">Saved Request list will go here.</p>
+                <div data-content="requests" class="sidebar-content-tab hidden">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Saved Requests</h2>
+                    <p class="text-gray-500 text-sm">Request collection management goes here.</p>
                 </div>
 
-                <!-- Scripts Content (Placeholder for script library) -->
-                <div id="scripts-content" class="p-4 space-y-3 hidden" data-content="scripts">
-                    <h3 class="font-semibold text-gray-700">Script Library</h3>
-                    <p class="text-sm text-gray-500">Script library UI will go here.</p>
+                <div data-content="scripts" class="sidebar-content-tab hidden">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Post-Request Scripts</h2>
+                    <p class="text-gray-500 text-sm">Scripts for automated testing/variable extraction go here.</p>
                 </div>
-
             </div>
+
         </aside>
 
-        <!-- Main Content (Request/Response) -->
-        <main class="lg:col-span-2 space-y-6">
-
-            <!-- Main Tab Navigation -->
+        <!-- Main Area (Request/Response) -->
+        <main class="lg:col-span-2 space-y-4">
+            
+            <!-- Main Tab Navigation (Request/Response) -->
             <div class="flex border border-gray-300 rounded-xl shadow-md overflow-hidden">
-                <button data-tab="request" class="main-tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchMainTab('request')">Request</button>
+                <button data-tab="request" class="main-tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150 active" onclick="window.app.switchMainTab('request')">Request</button>
                 <button data-tab="response" class="main-tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchMainTab('response')">Response</button>
             </div>
 
-            <div id="main-content" class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+            <!-- Main Content Area -->
+            <div id="main-content" class="bg-white p-6 rounded-xl shadow-md">
 
-                <!-- Request Composer -->
-                <div id="request-composer" class="space-y-4" data-content="request">
+                <!-- 1. Request Tab Content -->
+                <div data-content="request" class="main-content-tab">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">HTTP Request</h2>
                     
-                    <!-- URL/Method Bar -->
-                    <div class="flex space-x-3">
-                        <select id="request-method" class="flex-shrink-0 p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 w-24 font-bold bg-gray-50 text-sm">
-                            <option>GET</option>
-                            <option>POST</option>
-                            <option>PUT</option>
-                            <option>PATCH</option>
-                            <option>DELETE</option>
+                    <!-- URL and Method Input -->
+                    <div class="flex space-x-3 mb-4">
+                        <select id="request-method" class="border border-gray-300 rounded-lg p-2 font-mono text-sm shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-gray-50">
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="DELETE">DELETE</option>
+                            <option value="PATCH">PATCH</option>
                         </select>
-                        <input type="text" id="request-url" placeholder="Enter URL (e.g., {{baseUrl}}/users/{{userId}})" class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 code-input text-sm">
-                        <button id="send-request-btn" class="flex-shrink-0 px-6 py-3 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition duration-150 shadow-md">
-                            Send Request
-                        </button>
+                        <input type="text" id="request-url" placeholder="Enter URL (e.g., {{baseUrl}}/users/{{userId}})" class="flex-1 border border-gray-300 rounded-lg p-2 text-sm font-mono shadow-sm focus:ring-blue-500 focus:border-blue-500">
                     </div>
 
-                    <!-- Headers List -->
-                    <div class="border-t pt-4">
-                        <h3 class="font-medium text-gray-600 mb-2 flex justify-between items-center">
-                            Request Headers
-                            <span class="text-xs text-gray-400 italic font-normal">Use {'{{var}}'} for templating</span>
-                        </h3>
-                        <div id="request-headers-list" class="space-y-2">
-                            <!-- Dynamic header rows will be added/managed by app.js -->
-                        </div>
-                        <button id="add-header-btn" class="mt-3 py-2 px-4 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition duration-150">
-                            + Add Header
-                        </button>
-                    </div>
+                    <!-- Headers/Body Area -->
+                    <h3 class="font-medium text-gray-600 mb-2 mt-4">Request Body (JSON)</h3>
+                    <textarea id="request-body" placeholder="Paste JSON body here (optional)" class="code-input w-full border border-gray-300 rounded-lg p-3 text-sm font-mono focus:ring-blue-500 focus:border-blue-500 resize-y"></textarea>
 
-                    <!-- Body Textarea -->
-                    <div class="border-t pt-4">
-                        <h3 class="font-medium text-gray-600 mb-2 flex justify-between items-center">
-                            Request Body
-                            <span class="text-xs text-gray-400 italic font-normal">Content-Type: application/json assumed</span>
-                        </h3>
-                        <textarea id="request-body" placeholder="{&quot;key&quot;: &quot;value&quot;}" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 code-input text-sm" rows="10"></textarea>
-                    </div>
+                    <h3 class="font-medium text-gray-600 mb-2 mt-4">Request Headers (JSON)</h3>
+                    <textarea id="request-headers" placeholder='Paste JSON headers here (e.g., {"Content-Type": "application/json"})' class="code-input w-full border border-gray-300 rounded-lg p-3 text-sm font-mono focus:ring-blue-500 focus:border-blue-500 resize-y"></textarea>
 
-                    <!-- Post-Script Textarea -->
-                    <div class="border-t pt-4">
-                        <h3 class="font-medium text-gray-600 mb-2 flex justify-between items-center">
-                            Post-Request Script ID
-                            <span class="text-xs text-gray-400 italic font-normal">Enter the ID of a saved script to run after the request</span>
-                        </h3>
-                        <input type="text" id="post-script-id" placeholder="e.g., script-101" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
-                    </div>
-
+                    <!-- Send Button -->
+                    <button id="send-request-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition duration-200 shadow-lg mt-4">
+                        Send Request
+                    </button>
                 </div>
 
-                <!-- Response Viewer -->
-                <div id="response-viewer" class="space-y-4 hidden" data-content="response">
-                    <h2 class="text-xl font-semibold text-gray-800 flex justify-between items-center">
+                <!-- 2. Response Tab Content -->
+                <div data-content="response" class="main-content-tab hidden">
+                    
+                    <!-- Response Summary Line -->
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4 flex justify-between items-center">
                         Response Details
                         <div class="text-sm font-normal space-x-3">
                             <span id="response-status" class="font-bold text-gray-500">Status: ---</span>
@@ -158,6 +132,5 @@
 
         </main>
     </div>
-    
 </body>
 </html>
