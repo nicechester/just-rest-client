@@ -11,8 +11,14 @@ import { executePostScript } from './scripting.js';
 import { variableStore, setVariable, getVariableStore } from './variable.js';
 
 
-// --- Global Initialization --
+// --- Global Initialization ---
+
 // Initialize global app container object for inline HTML event handlers
+// CRITICAL FIX: The functions exposed to the window must be defined before the 
+// DOM is fully loaded and before initializeApp runs, so they are available
+// immediately for inline onclick handlers.
+
+// Define the global app object
 window.app = {};
 
 // Use a simple data structure for the app state
@@ -21,175 +27,190 @@ const appState = {
     activeMainTab: 'request',
 };
 
-// Global object to hold DOM elements once they are queried in initializeApp
-let DOMElements = {};
+// --- DOM Element References ---
+const DOMElements = {
+    // Tabs
+    sidebarTabsContainer: document.querySelector('.col-span-1 > .flex'),
+    mainTabsContainer: document.querySelector('.lg:col-span-2 > .flex'),
+    // Content Areas
+    sidebarContentContainer: document.getElementById('sidebar-content'),
+    mainContentContainer: document.getElementById('main-content'),
+    // Request Inputs
+    requestUrlInput: document.getElementById('request-url'),
+    requestMethodSelect: document.getElementById('request-method'),
+    requestBodyTextarea: document.getElementById('request-body'),
+    requestHeadersTextarea: document.getElementById('request-headers'),
+    sendButton: document.getElementById('send-request-btn'),
+    // Response Outputs
+    responseStatus: document.getElementById('response-status'),
+    responseTime: document.getElementById('response-time'),
+    processedUrl: document.getElementById('processed-url'),
+    responseBody: document.getElementById('response-body'),
+    responseHeaders: document.getElementById('response-headers'),
+    scriptOutput: document.getElementById('script-output'),
+};
 
-// --- UI Logic ---
+// --- Tab Switching Logic (Sidebar) ---
 
 /**
- * Switches the active tab in the sidebar (Variables, Requests, Scripts).
- * @param {string} tabName - The name of the tab to switch to ('variables', 'requests', 'scripts').
+ * Switches the active tab in the sidebar (Variables, History, Scripts).
+ * @param {string} tabId - The ID of the tab to switch to ('variables', 'requests', 'scripts').
  */
-function switchSidebarTab(tabName) {
-    if (appState.activeSidebarTab === tabName) return;
+function switchSidebarTab(tabId) {
+    if (appState.activeSidebarTab === tabId) return;
 
-    // 1. Update tab buttons
+    // 1. Update internal state
+    appState.activeSidebarTab = tabId;
+
+    // 2. Update button active state
     DOMElements.sidebarTabsContainer.querySelectorAll('.tab-button').forEach(button => {
         button.classList.remove('active');
-        button.classList.remove('text-white', 'bg-blue-500'); // Clean up existing active classes
-        if (button.dataset.tab === tabName) {
-            button.classList.add('active', 'text-white', 'bg-blue-500'); // Tailwind for active state
+        if (button.dataset.tab === tabId) {
+            button.classList.add('active');
         }
     });
 
-    // 2. Update content visibility
-    DOMElements.sidebarContentContainer.querySelectorAll('.sidebar-content-tab').forEach(content => {
-        content.classList.add('hidden');
-        if (content.dataset.content === tabName) {
+    // 3. Update content visibility
+    DOMElements.sidebarContentContainer.querySelectorAll('.tab-content').forEach(content => {
+        if (content.dataset.tab === tabId) {
             content.classList.remove('hidden');
+        } else {
+            content.classList.add('hidden');
         }
     });
-
-    appState.activeSidebarTab = tabName;
+    
+    // Trigger render logic specific to the tab if needed (e.g., render requests list)
+    // Placeholder for future implementation
+    console.log(`Switched sidebar tab to: ${tabId}`);
 }
 
-/**
- * Switches the active tab in the main area (Request or Response).
- * @param {string} tabName - The name of the tab to switch to ('request', 'response').
- */
-function switchMainTab(tabName) {
-    if (appState.activeMainTab === tabName) return;
+// --- Tab Switching Logic (Main Panel) ---
 
-    // 1. Update tab buttons
+/**
+ * Switches the active tab in the main panel (Request, Response, History).
+ * @param {string} tabId - The ID of the tab to switch to ('request', 'response', 'history').
+ */
+function switchMainTab(tabId) {
+    if (appState.activeMainTab === tabId) return;
+
+    // 1. Update internal state
+    appState.activeMainTab = tabId;
+
+    // 2. Update button active state
     DOMElements.mainTabsContainer.querySelectorAll('.main-tab-button').forEach(button => {
         button.classList.remove('active');
-        button.classList.remove('text-white', 'bg-blue-500'); // Clean up existing active classes
-        if (button.dataset.tab === tabName) {
-            button.classList.add('active', 'text-white', 'bg-blue-500'); // Tailwind for active state
+        if (button.dataset.tab === tabId) {
+            button.classList.add('active');
         }
     });
 
-    // 2. Update content visibility
-    DOMElements.mainContentContainer.querySelectorAll('.main-content-tab').forEach(content => {
-        content.classList.add('hidden');
-        if (content.dataset.content === tabName) {
+    // 3. Update content visibility
+    DOMElements.mainContentContainer.querySelectorAll('.main-tab-content').forEach(content => {
+        if (content.dataset.tab === tabId) {
             content.classList.remove('hidden');
+        } else {
+            content.classList.add('hidden');
         }
     });
-
-    appState.activeMainTab = tabName;
-}
-
-/**
- * Sets the loading state on the UI elements.
- * @param {boolean} isLoading - Whether the application is currently loading/sending a request.
- */
-function setLoadingState(isLoading) {
-    if (DOMElements.sendButton) {
-        DOMElements.sendButton.disabled = isLoading;
-        DOMElements.sendButton.textContent = isLoading ? 'Sending...' : 'Send Request';
-        if (isLoading) {
-            DOMElements.sendButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
-            DOMElements.sendButton.classList.add('bg-gray-400');
-        } else {
-            DOMElements.sendButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
-            DOMElements.sendButton.classList.remove('bg-gray-400');
-        }
-    }
-}
-
-/**
- * Updates the UI with the request results. This is passed to request.js as a callback.
- * @param {Response|Object} response - The native Fetch Response object (or mock error object).
- * @param {Object} responseData - The parsed response body data.
- * @param {string} scriptOutput - The log output from the post-request script.
- * @param {string} processedUrl - The final URL after variable substitution.
- * @param {number} duration - The request duration in milliseconds.
- */
-function displayResponse(response, responseData, scriptOutput, processedUrl, duration) {
-    setLoadingState(false);
-
-    // Get formatted response body
-    let bodyText;
-    if (typeof responseData === 'object' && responseData !== null) {
-        bodyText = JSON.stringify(responseData, null, 2);
-    } else {
-        bodyText = String(responseData);
-    }
-
-    // Get formatted headers
-    let headersText = '';
-    if (response.headers && typeof response.headers.entries === 'function') {
-        for (const [key, value] of response.headers.entries()) {
-            headersText += `${key}: ${value}\n`;
-        }
-    } else {
-         headersText = 'N/A';
-    }
-
-
-    // Update DOM elements
-    DOMElements.responseStatus.textContent = `Status: ${response.status || response.statusText}`;
     
-    // Set status color
-    let statusClass = 'text-gray-500';
-    if (response.status >= 200 && response.status < 300) {
-        statusClass = 'text-green-500';
-    } else if (response.status >= 400 || response.statusText === 'Network Error') {
-        statusClass = 'text-red-500';
-    } else if (response.status >= 300) {
-        statusClass = 'text-yellow-600';
-    }
-    DOMElements.responseStatus.className = `font-bold ${statusClass}`;
-
-    DOMElements.responseTime.textContent = `Time: ${duration}ms`;
-    DOMElements.processedUrl.textContent = `URL: ${processedUrl}`;
-    
-    DOMElements.responseBody.textContent = bodyText;
-    DOMElements.responseHeaders.textContent = headersText;
-    DOMElements.scriptOutput.textContent = scriptOutput;
-
-    // Switch to the response tab
-    switchMainTab('response');
+    // Placeholder for future implementation (e.g., load specific request history)
+    console.log(`Switched main tab to: ${tabId}`);
 }
 
-// --- Event Handlers ---
+
+// --- Request and Response Logic ---
 
 /**
- * Handles the click event for the "Send Request" button.
+ * Handles the main "Send Request" button click.
  */
 async function handleSendRequest() {
-    setLoadingState(true);
+    const rawUrl = DOMElements.requestUrlInput.value;
+    const method = DOMElements.requestMethodSelect.value;
+    const rawBody = DOMElements.requestBodyTextarea.value;
+    const rawHeadersText = DOMElements.requestHeadersTextarea.value;
+    
+    // Parse headers from the textarea (simple key: value per line)
+    const rawHeaders = rawHeadersText.split('\n')
+        .map(line => line.trim())
+        .filter(line => line)
+        .map(line => {
+            const parts = line.split(':').map(p => p.trim());
+            return { key: parts[0], value: parts.slice(1).join(':').trim() };
+        });
 
-    let rawHeaders = {};
-    try {
-        if (DOMElements.requestHeadersTextarea.value.trim()) {
-            rawHeaders = JSON.parse(DOMElements.requestHeadersTextarea.value.trim());
-        }
-    } catch (e) {
-        // Use console.error instead of alert per instructions
-        console.error('Invalid JSON in Headers field.', e);
-        setLoadingState(false);
-        return;
-    }
+    // Dummy Post-Script ID for now, as UI to select is not built
+    const postScriptId = 'script-1'; 
+    
+    // Disable button and change text
+    DOMElements.sendButton.disabled = true;
+    DOMElements.sendButton.textContent = 'Sending...';
 
-    // Execute the request, providing displayResponse and executePostScript as callbacks
-    // For now, we use a mock script ID. Actual implementation would link to a saved script.
-    const mockPostScriptId = 'default-script-id'; 
-
-    executeRequest(
-        DOMElements.requestUrlInput.value,
-        DOMElements.requestMethodSelect.value,
-        rawHeaders, 
-        DOMElements.requestBodyTextarea.value,
-        mockPostScriptId,
-        displayResponse, // Function to update UI after request
-        executePostScript // Function to run user script after response
-    );
+    // Execute the request (imported from request.js)
+    // executeRequest will call displayResponse internally
+    await executeRequest(rawUrl, method, rawHeaders, rawBody, postScriptId, displayResponse);
+    
+    // Re-enable button
+    DOMElements.sendButton.disabled = false;
+    DOMElements.sendButton.textContent = 'Send Request';
 }
 
 
-// --- Initialization ---
+/**
+ * Updates the UI with the request response details.
+ * This function is passed to and called by executeRequest in request.js.
+ * @param {Response|Object} response - The Fetch Response object or a mock error object.
+ * @param {Object|string} responseData - The parsed response body (JSON object or plain text).
+ * @param {string} scriptOutput - Log output from the post-request script.
+ * @param {string} processedUrl - The URL after variable templating.
+ * @param {number} duration - The total duration of the request in ms.
+ */
+function displayResponse(response, responseData, scriptOutput, processedUrl, duration) {
+    // 1. Switch to Response tab
+    switchMainTab('response');
+    
+    // 2. Update Status and Info
+    DOMElements.responseStatus.textContent = `Status: ${response.status || 'N/A'} ${response.statusText || ''}`;
+    DOMElements.responseTime.textContent = `Time: ${duration !== undefined ? duration : '---'}ms`;
+    DOMElements.processedUrl.textContent = `URL: ${processedUrl || 'N/A'}`;
+    
+    // 3. Update Body
+    let bodyContent = '';
+    if (typeof responseData === 'object' && responseData !== null) {
+        // Pretty-print JSON
+        try {
+            bodyContent = JSON.stringify(responseData, null, 2);
+        } catch (e) {
+            bodyContent = String(responseData); // Fallback
+        }
+    } else {
+        bodyContent = String(responseData);
+    }
+    DOMElements.responseBody.textContent = bodyContent;
+    
+    // 4. Update Headers
+    let headerContent = '';
+    if (response.headers && typeof response.headers.forEach === 'function') {
+        response.headers.forEach((value, key) => {
+            headerContent += `${key}: ${value}\n`;
+        });
+    } else if (response.headers) {
+        // Handle mock Headers object
+        for (const [key, value] of Object.entries(response.headers)) {
+            headerContent += `${key}: ${value}\n`;
+        }
+    }
+    DOMElements.responseHeaders.textContent = headerContent;
+    
+    // 5. Update Script Output
+    DOMElements.scriptOutput.textContent = scriptOutput || 'No script log.';
+}
+
+
+// --- Expose core functions globally for inline HTML usage ---
+// This must be done at the top level of the module so it is available 
+// immediately upon script execution, preventing the TypeError on inline HTML onclick events.
+window.app.switchSidebarTab = switchSidebarTab;
+window.app.switchMainTab = switchMainTab;
 
 /**
  * Initializes the application: loads data, sets up UI state, and attaches listeners.
@@ -197,37 +218,8 @@ async function handleSendRequest() {
 function initializeApp() {
     console.log('App initializing...');
 
-    // CRITICAL FIX: Define DOMElements inside initializeApp (or after DOMContentLoaded)
-    // to prevent the SyntaxError from trying to query non-existent elements.
-    DOMElements = {
-        // Tabs
-        sidebarTabsContainer: document.querySelector('.col-span-1 > .flex'),
-        mainTabsContainer: document.querySelector('.lg\\:col-span-2 > .flex'), // Note: Escaped colon for safety
-        // Content Areas
-        sidebarContentContainer: document.getElementById('sidebar-content'),
-        mainContentContainer: document.getElementById('main-content'),
-        // Request Inputs
-        requestUrlInput: document.getElementById('request-url'),
-        requestMethodSelect: document.getElementById('request-method'),
-        requestBodyTextarea: document.getElementById('request-body'),
-        requestHeadersTextarea: document.getElementById('request-headers'),
-        sendButton: document.getElementById('send-request-btn'),
-        // Response Outputs
-        responseStatus: document.getElementById('response-status'),
-        responseTime: document.getElementById('response-time'),
-        processedUrl: document.getElementById('processed-url'),
-        responseBody: document.getElementById('response-body'),
-        responseHeaders: document.getElementById('response-headers'),
-        scriptOutput: document.getElementById('script-output'),
-    };
-    
-    // Check if the DOM elements were found before proceeding
-    if (!DOMElements.mainTabsContainer) {
-        console.error('Could not find mainTabsContainer. Check HTML structure and selectors.');
-        return;
-    }
-
     // 1. Load initial data from storage
+    // The functions are available because they are imported from storage.js and variable.js
     loadVariableStore();
     loadAllRequests();
     loadAllScripts();
@@ -237,26 +229,19 @@ function initializeApp() {
         DOMElements.sendButton.addEventListener('click', handleSendRequest);
     }
 
-    // 3. Set initial active tabs visually and apply initial active classes
-    const initialSidebarButton = DOMElements.sidebarTabsContainer.querySelector(`[data-tab="${appState.activeSidebarTab}"]`);
+    // 3. Set initial active tabs visually
+    const initialSidebarButton = DOMElements.sidebarTabsContainer.querySelector(`[data-tab=\"${appState.activeSidebarTab}\"]`);
     if (initialSidebarButton) {
-        initialSidebarButton.classList.add('active', 'text-white', 'bg-blue-500');
+        initialSidebarButton.classList.add('active');
     }
 
-    const initialMainButton = DOMElements.mainTabsContainer.querySelector(`[data-tab="${appState.activeMainTab}"]`);
+    const initialMainButton = DOMElements.mainTabsContainer.querySelector(`[data-tab=\"${appState.activeMainTab}\"]`);
     if (initialMainButton) {
-        initialMainButton.classList.add('active', 'text-white', 'bg-blue-500');
+        initialMainButton.classList.add('active');
     }
     
     console.log('App initialized.');
 }
-
-// CRITICAL FIX: Expose core functions globally immediately upon module evaluation
-// to prevent the "is not a function" error on inline HTML onclick events.
-// The functions are defined above, so this works now.
-window.app.switchSidebarTab = switchSidebarTab;
-window.app.switchMainTab = switchMainTab;
-
 
 // Run the initialization logic when the DOM is fully loaded
 document.addEventListener('DOMContentLoaded', initializeApp);
