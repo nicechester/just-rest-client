@@ -75,6 +75,35 @@ const app = {
         preScript: null,
         postScript: null
     },
+    
+    // Custom confirm dialog
+    confirmDialog: {
+        show(message, onConfirm) {
+            const dialog = document.getElementById('confirm-dialog');
+            const messageEl = document.getElementById('confirm-message');
+            const okBtn = document.getElementById('confirm-ok');
+            const cancelBtn = document.getElementById('confirm-cancel');
+            
+            messageEl.textContent = message;
+            dialog.classList.remove('hidden');
+            
+            // Remove old listeners
+            const newOkBtn = okBtn.cloneNode(true);
+            const newCancelBtn = cancelBtn.cloneNode(true);
+            okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+            
+            // Add new listeners
+            newOkBtn.onclick = () => {
+                dialog.classList.add('hidden');
+                onConfirm();
+            };
+            
+            newCancelBtn.onclick = () => {
+                dialog.classList.add('hidden');
+            };
+        }
+    },
 
     elements: {
         // Request Inputs
@@ -110,7 +139,7 @@ const app = {
             <div class="flex justify-between items-center bg-gray-100 p-2 rounded-lg">
                 <span class="font-mono text-xs text-gray-700">${key}</span>
                 <span class="font-mono text-xs text-blue-600 truncate max-w-[60%]">${value}</span>
-                <button onclick="window.app.deleteVariable('${key}')" class="text-red-500 hover:text-red-700 ml-2 text-xs">X</button>
+                <button data-delete-var="${key}" class="delete-var-btn text-red-500 hover:text-red-700 ml-2 text-xs">X</button>
             </div>
         `).join('');
     },
@@ -139,11 +168,11 @@ const app = {
         app.elements.requestsList.innerHTML = requests.length > 0
             ? requests.map(r => `
                 <div class="w-full p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition text-sm flex justify-between items-center">
-                    <button onclick="window.app.loadRequest('${r.id}')" class="flex-1 text-left flex justify-between items-center">
+                    <button data-load-request="${r.id}" class="load-request-btn flex-1 text-left flex justify-between items-center">
                         <span>${r.title}</span>
                         <span class="text-xs font-mono text-gray-500">${r.method}</span>
                     </button>
-                    <button onclick="window.app.deleteRequest('${r.id}')" class="text-red-500 hover:text-red-700 ml-2 text-xs px-2">X</button>
+                    <button data-delete-request="${r.id}" class="delete-request-btn text-red-500 hover:text-red-700 ml-2 text-xs px-2">X</button>
                 </div>
             `).join('')
             : '<p class="text-gray-500">No requests saved.</p>';
@@ -153,10 +182,10 @@ const app = {
         app.elements.scriptsList.innerHTML = scripts.length > 0
             ? scripts.map(s => `
                 <div class="w-full p-2 bg-purple-100 hover:bg-purple-200 rounded-lg transition text-sm flex justify-between items-center">
-                    <button onclick="window.app.loadScriptToEditor('${s.id}')" class="flex-1 text-left">
+                    <button data-load-script="${s.id}" class="load-script-btn flex-1 text-left">
                         <span>${s.name}</span>
                     </button>
-                    <button onclick="window.app.deleteScript('${s.id}')" class="text-red-500 hover:text-red-700 ml-2 text-xs px-2">X</button>
+                    <button data-delete-script="${s.id}" class="delete-script-btn text-red-500 hover:text-red-700 ml-2 text-xs px-2">X</button>
                 </div>
             `).join('')
             : '<p class="text-gray-500">No scripts saved.</p>';
@@ -293,19 +322,18 @@ const app = {
     },
     
     deleteRequest(id) {
-        if (confirm('Are you sure you want to delete this request?')) {
+        app.confirmDialog.show('Are you sure you want to delete this request?', () => {
             let requests = getAllRequests().filter(r => r.id !== id);
             saveCollection(STORAGE_KEYS.REQUESTS, requests);
             app.renderCollections();
             if (app.currentRequest.id === id) {
-                // Clear current request if it's the one being deleted
                 app.currentRequest.id = null;
             }
-        }
+        });
     },
 
     deleteScript(id) {
-         if (confirm('Are you sure you want to delete this script?')) {
+        app.confirmDialog.show('Are you sure you want to delete this script?', () => {
             let scripts = getAllScripts().filter(s => s.id !== id);
             saveCollection(STORAGE_KEYS.SCRIPTS, scripts);
             app.renderCollections();
@@ -317,16 +345,16 @@ const app = {
                 app.currentRequest.preScriptId = '';
                 app.elements.preScriptSelect.value = '';
             }
-        }
+        });
     },
 
     deleteVariable(key) {
-        if (confirm(`Are you sure you want to delete variable '${key}'?`)) {
+        app.confirmDialog.show(`Are you sure you want to delete variable '${key}'?`, () => {
             let vars = getVariableStore();
             delete vars[key];
             saveVariableStore(vars);
             app.renderVariableStore();
-        }
+        });
     },
 
     // --- Request/Header Logic ---
@@ -663,6 +691,46 @@ const app = {
             alert(`Pre-request script saved as: ${savedScript.name}`);
             app.renderCollections();
         };
+
+        // Event delegation for dynamically rendered delete and load buttons
+        const variablesList = document.getElementById('variables-list');
+        const requestsList = document.getElementById('requests-list');
+        const scriptsList = document.getElementById('scripts-list');
+        
+        if (variablesList) {
+            variablesList.addEventListener('click', (e) => {
+                if (e.target.classList.contains('delete-var-btn')) {
+                    const key = e.target.getAttribute('data-delete-var');
+                    if (key) app.deleteVariable(key);
+                }
+            });
+        }
+
+        if (requestsList) {
+            requestsList.addEventListener('click', (e) => {
+                if (e.target.classList.contains('delete-request-btn')) {
+                    const id = e.target.getAttribute('data-delete-request');
+                    if (id) app.deleteRequest(id);
+                } else if (e.target.classList.contains('load-request-btn') || e.target.closest('.load-request-btn')) {
+                    const btn = e.target.classList.contains('load-request-btn') ? e.target : e.target.closest('.load-request-btn');
+                    const id = btn.getAttribute('data-load-request');
+                    if (id) app.loadRequest(id);
+                }
+            });
+        }
+
+        if (scriptsList) {
+            scriptsList.addEventListener('click', (e) => {
+                if (e.target.classList.contains('delete-script-btn')) {
+                    const id = e.target.getAttribute('data-delete-script');
+                    if (id) app.deleteScript(id);
+                } else if (e.target.classList.contains('load-script-btn') || e.target.closest('.load-script-btn')) {
+                    const btn = e.target.classList.contains('load-script-btn') ? e.target : e.target.closest('.load-script-btn');
+                    const id = btn.getAttribute('data-load-script');
+                    if (id) app.loadScriptToEditor(id);
+                }
+            });
+        }
 
         // Export/Import listeners
         document.getElementById('export-btn').onclick = () => exportAllData(getVariableStore(), getAllRequests(), getAllScripts());

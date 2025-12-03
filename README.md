@@ -46,7 +46,7 @@ npm run tauri:build
 - ✅ Native performance
 - ✅ Offline capable
 
-See [TAURI.md](TAURI.md) for detailed setup instructions.
+See [TAURI.md](TAURI.md) for detailed setup instructions and [ARCHITECTURE.md](ARCHITECTURE.md) for technical architecture documentation.
 
 ## ✨ Features
 
