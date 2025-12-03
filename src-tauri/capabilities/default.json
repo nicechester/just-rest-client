@@ -18,6 +18,15 @@
     "core:window:allow-set-title",
     "core:window:allow-center",
     "core:webview:default",
-    "core:webview:allow-print"
+    "core:webview:allow-print",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://**" },
+        { "url": "http://**" },
+        { "url": "http://localhost:*" },
+        { "url": "http://127.0.0.1:*" }
+      ]
+    }
   ]
 }

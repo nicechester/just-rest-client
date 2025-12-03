@@ -2,10 +2,14 @@
   "name": "just-rest-client",
   "version": "0.1.0",
   "description": "A lightweight REST API client built with Tauri",
+  "type": "module",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "tauri": "cargo tauri",
-    "dev": "cargo tauri dev",
-    "build": "cargo tauri build"
+    "tauri:dev": "cargo tauri dev",
+    "tauri:build": "npm run build && cargo tauri build"
   },
   "keywords": [
     "rest",
@@ -15,6 +19,12 @@
     "tauri"
   ],
   "author": "Chester Kim",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@tauri-apps/plugin-http": "^2.5.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^2.1.0",
+    "vite": "^7.2.6"
+  }
 }
-

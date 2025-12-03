@@ -4,10 +4,11 @@
   "version": "0.1.0",
   "identifier": "com.chester.just-rest-client",
   "build": {
-    "frontendDist": "../web",
+    "frontendDist": "../dist",
     "devUrl": "http://localhost:9001"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "Just REST Client",
@@ -33,6 +34,5 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
-  },
-  "plugins": {}
+  }
 }

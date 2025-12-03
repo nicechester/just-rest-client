@@ -1,6 +1,11 @@
 # Tauri
 src-tauri/target/
 
+# Vite
+dist/
+node_modules/
+.vite/
+
 # Logs
 *.log
 

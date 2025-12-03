@@ -20,18 +20,31 @@ Download MacOS binary at https://github.com/nicechester/just-rest-client/blob/ma
 
 #### Build from source codes
 
-Run as a native desktop application with no CORS restrictions:
+Run as a native desktop application with **no CORS restrictions**:
 
 ```bash
-# Terminal 1: Start dev server
-cd web && python3 -m http.server 9001
+# Development (single command)
+./dev.sh
+
+# OR manually in two terminals:
+# Terminal 1: Start Vite dev server
+npm run dev
 
 # Terminal 2: Run Tauri
-cargo tauri dev
+npm run tauri:dev
 
-# Build production app (no server needed)
-cargo tauri build
+# Build production app
+./build.sh
+
+# OR manually:
+npm run tauri:build
 ```
+
+**Benefits of Desktop App:**
+- ✅ No CORS restrictions - call any API
+- ✅ Better SSL/TLS handling
+- ✅ Native performance
+- ✅ Offline capable
 
 See [TAURI.md](TAURI.md) for detailed setup instructions.
 
