@@ -19,6 +19,10 @@
     "core:window:allow-center",
     "core:webview:default",
     "core:webview:allow-print",
+    "dialog:default",
+    "dialog:allow-save",
+    "fs:default",
+    "fs:allow-write-text-file",
     {
       "identifier": "http:default",
       "allow": [

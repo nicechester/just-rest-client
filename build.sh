@@ -34,3 +34,4 @@ echo "   macOS: src-tauri/target/release/bundle/macos/"
 echo "   DMG:   src-tauri/target/release/bundle/dmg/"
 echo ""
 
+cp src-tauri/target/release/bundle/dmg/Just\ REST\ Client_0.1.0_aarch64.dmg downloads/just_rest_client_0.1.0_aarch64.dmg
