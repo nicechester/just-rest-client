@@ -104,6 +104,85 @@ const app = {
             };
         }
     },
+    
+    // Generate cURL command
+    generateCurlCommand() {
+        const url = app.elements.urlInput.value || '';
+        const method = app.elements.methodSelect.value;
+        const headers = app.currentRequest.rawHeaders.filter(h => h.key);
+        const body = app.elements.bodyTextarea.value;
+        
+        // Apply variable templating
+        const processedUrl = app.applyTemplateToString(url);
+        const processedBody = body ? app.applyTemplateToString(body) : '';
+        
+        let curlCommand = `curl -X ${method}`;
+        
+        // Add URL
+        curlCommand += ` '${processedUrl}'`;
+        
+        // Add headers
+        headers.forEach(header => {
+            const key = app.applyTemplateToString(header.key);
+            const value = app.applyTemplateToString(header.value);
+            curlCommand += ` \\\n  -H '${key}: ${value}'`;
+        });
+        
+        // Add body
+        if (processedBody && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+            // Escape single quotes in body
+            const escapedBody = processedBody.replace(/'/g, "'\\''");
+            curlCommand += ` \\\n  -d '${escapedBody}'`;
+        }
+        
+        return curlCommand;
+    },
+    
+    applyTemplateToString(str) {
+        if (!str) return str;
+        const vars = getVariableStore();
+        return str.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+            return vars[varName] !== undefined ? vars[varName] : match;
+        });
+    },
+    
+    showCurlDialog() {
+        const dialog = document.getElementById('curl-dialog');
+        const commandEl = document.getElementById('curl-command');
+        const copyBtn = document.getElementById('curl-copy');
+        const closeBtn = document.getElementById('curl-close');
+        
+        const curlCommand = app.generateCurlCommand();
+        commandEl.textContent = curlCommand;
+        dialog.classList.remove('hidden');
+        
+        // Remove old listeners
+        const newCopyBtn = copyBtn.cloneNode(true);
+        const newCloseBtn = closeBtn.cloneNode(true);
+        copyBtn.parentNode.replaceChild(newCopyBtn, copyBtn);
+        closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+        
+        // Add new listeners
+        newCopyBtn.onclick = async () => {
+            try {
+                await navigator.clipboard.writeText(curlCommand);
+                newCopyBtn.textContent = 'Copied!';
+                newCopyBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                newCopyBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+                setTimeout(() => {
+                    newCopyBtn.textContent = 'Copy to Clipboard';
+                    newCopyBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                    newCopyBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                }, 2000);
+            } catch (error) {
+                alert('Failed to copy to clipboard');
+            }
+        };
+        
+        newCloseBtn.onclick = () => {
+            dialog.classList.add('hidden');
+        };
+    },
 
     elements: {
         // Request Inputs
@@ -136,12 +215,67 @@ const app = {
     renderVariableStore() {
         const vars = getVariableStore();
         app.elements.variablesList.innerHTML = Object.entries(vars).map(([key, value]) => `
-            <div class="flex justify-between items-center bg-gray-100 p-2 rounded-lg">
-                <span class="font-mono text-xs text-gray-700">${key}</span>
-                <span class="font-mono text-xs text-blue-600 truncate max-w-[60%]">${value}</span>
-                <button data-delete-var="${key}" class="delete-var-btn text-red-500 hover:text-red-700 ml-2 text-xs">X</button>
+            <div class="variable-item bg-gray-100 p-2 rounded-lg hover:bg-gray-200 transition" data-var-key="${key}">
+                <div class="variable-display flex justify-between items-center cursor-pointer">
+                    <span class="font-mono text-xs text-gray-700 font-semibold">${key}</span>
+                    <span class="font-mono text-xs text-blue-600 truncate flex-1 mx-2">${value}</span>
+                    <button data-delete-var="${key}" class="delete-var-btn text-red-500 hover:text-red-700 ml-2 text-xs">X</button>
+                </div>
+                <div class="variable-edit hidden mt-2">
+                    <div class="flex space-x-2">
+                        <input type="text" class="edit-var-key flex-1 p-2 border rounded-lg text-xs font-mono" value="${key}" placeholder="Key">
+                        <input type="text" class="edit-var-value flex-1 p-2 border rounded-lg text-xs font-mono" value="${value}" placeholder="Value">
+                    </div>
+                    <div class="flex space-x-2 mt-2">
+                        <button class="save-var-btn flex-1 bg-green-500 text-white px-3 py-1 rounded text-xs hover:bg-green-600 transition">Save</button>
+                        <button class="cancel-var-btn flex-1 bg-gray-400 text-white px-3 py-1 rounded text-xs hover:bg-gray-500 transition">Cancel</button>
+                    </div>
+                </div>
             </div>
         `).join('');
+    },
+    
+    editVariable(key) {
+        const item = document.querySelector(`.variable-item[data-var-key="${key}"]`);
+        if (item) {
+            item.querySelector('.variable-display').classList.add('hidden');
+            item.querySelector('.variable-edit').classList.remove('hidden');
+            // Focus on value input
+            item.querySelector('.edit-var-value').focus();
+        }
+    },
+    
+    saveEditedVariable(key) {
+        const item = document.querySelector(`.variable-item[data-var-key="${key}"]`);
+        if (!item) return;
+        
+        const newKey = item.querySelector('.edit-var-key').value.trim();
+        const newValue = item.querySelector('.edit-var-value').value.trim();
+        
+        if (!newKey) {
+            alert('Variable key cannot be empty');
+            return;
+        }
+        
+        // If key changed, delete old and add new
+        if (newKey !== key) {
+            const vars = getVariableStore();
+            delete vars[key];
+            setVariable(newKey, newValue);
+        } else {
+            // Just update value
+            setVariable(key, newValue);
+        }
+        
+        app.renderVariableStore();
+    },
+    
+    cancelEditVariable(key) {
+        const item = document.querySelector(`.variable-item[data-var-key="${key}"]`);
+        if (item) {
+            item.querySelector('.variable-display').classList.remove('hidden');
+            item.querySelector('.variable-edit').classList.add('hidden');
+        }
     },
 
     renderHeaders() {
@@ -645,6 +779,7 @@ const app = {
 
         // Attach event listeners
         document.getElementById('send-btn').onclick = app.handleSend;
+        document.getElementById('curl-btn').onclick = app.showCurlDialog;
         document.getElementById('new-request-btn').onclick = app.newRequest;
         document.getElementById('save-request-btn').onclick = app.saveAsNewRequest;
         document.getElementById('save-script-btn').onclick = app.saveCurrentScript;
@@ -720,9 +855,35 @@ const app = {
         
         if (variablesList) {
             variablesList.addEventListener('click', (e) => {
+                // Delete button
                 if (e.target.classList.contains('delete-var-btn')) {
                     const key = e.target.getAttribute('data-delete-var');
                     if (key) app.deleteVariable(key);
+                    return;
+                }
+                
+                // Save button
+                if (e.target.classList.contains('save-var-btn')) {
+                    const item = e.target.closest('.variable-item');
+                    const key = item.getAttribute('data-var-key');
+                    if (key) app.saveEditedVariable(key);
+                    return;
+                }
+                
+                // Cancel button
+                if (e.target.classList.contains('cancel-var-btn')) {
+                    const item = e.target.closest('.variable-item');
+                    const key = item.getAttribute('data-var-key');
+                    if (key) app.cancelEditVariable(key);
+                    return;
+                }
+                
+                // Click on variable display to edit
+                const display = e.target.closest('.variable-display');
+                if (display && !e.target.classList.contains('delete-var-btn')) {
+                    const item = display.closest('.variable-item');
+                    const key = item.getAttribute('data-var-key');
+                    if (key) app.editVariable(key);
                 }
             });
         }
