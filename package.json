@@ -1,0 +1,20 @@
+{
+  "name": "just-rest-client",
+  "version": "0.1.0",
+  "description": "A lightweight REST API client built with Tauri",
+  "scripts": {
+    "tauri": "cargo tauri",
+    "dev": "cargo tauri dev",
+    "build": "cargo tauri build"
+  },
+  "keywords": [
+    "rest",
+    "api",
+    "client",
+    "http",
+    "tauri"
+  ],
+  "author": "Chester Kim",
+  "license": "MIT"
+}
+

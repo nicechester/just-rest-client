@@ -2,11 +2,27 @@
 
 Just REST Client is a lightweight, single-page application (SPA) client built to test and interact with RESTful APIs. It features variable templating, configurable HTTP methods, and a dedicated response viewer for body, headers, and script output.
 
-## 🔗 Live Deployment
+## 🔗 Usage Options
 
+### Web Version
 You can access the live version of the application here:
-
 [https://nicechester.github.io/just-rest-client/](https://nicechester.github.io/just-rest-client/)
+
+### Desktop App (Tauri)
+Run as a native desktop application with no CORS restrictions:
+
+```bash
+# Terminal 1: Start dev server
+cd web && python3 -m http.server 9001
+
+# Terminal 2: Run Tauri
+cargo tauri dev
+
+# Build production app (no server needed)
+cargo tauri build
+```
+
+See [TAURI.md](TAURI.md) for detailed setup instructions.
 
 ## ✨ Features
 
