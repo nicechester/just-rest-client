@@ -1,5 +1,9 @@
 # Just REST Client
 
+<div align="center">
+  <img src="screenshot-request.png" alt="Just REST Client Screenshot" width="600"/>
+</div>
+
 Just REST Client is a lightweight, single-page application (SPA) client built to test and interact with RESTful APIs. It features variable templating, configurable HTTP methods, and a dedicated response viewer for body, headers, and script output.
 
 ## 🔗 Usage Options
