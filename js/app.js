@@ -15,6 +15,7 @@ import {
     getAllScripts, 
     saveScript, 
     exportAllData,
+    saveCollection,
     STORAGE_KEYS
 } from './storage.js';
 
@@ -26,7 +27,8 @@ import {
 } from './variable.js';
 
 import { 
-    executePostScript
+    executePostScript,
+    executePreScript
 } from './scripting.js';
 
 import { 
@@ -49,6 +51,7 @@ const app = {
         method: 'GET',
         rawHeaders: [{ key: '', value: '' }],
         body: '',
+        preScriptId: '',
         postScriptId: ''
     },
     
@@ -58,8 +61,20 @@ const app = {
         code: ''
     },
     
+    currentPreScript: {
+        id: null,
+        name: 'Untitled Pre-Script',
+        code: ''
+    },
+    
     currentSidebarTab: 'variables',
-    currentMainTab: 'request', 
+    currentMainTab: 'request',
+    
+    // CodeMirror editor instances
+    codeMirrorEditors: {
+        preScript: null,
+        postScript: null
+    },
 
     elements: {
         // Request Inputs
@@ -71,6 +86,9 @@ const app = {
         
         // Scripting
         scriptNameInput: document.getElementById('script-name-input'),
+        preScriptNameInput: document.getElementById('pre-script-name-input'),
+        preScriptSelect: document.getElementById('pre-script-select'),
+        preScriptEditor: document.getElementById('pre-script-editor'),
         postScriptSelect: document.getElementById('post-script-select'),
         postScriptEditor: document.getElementById('post-script-editor'),
 
@@ -82,10 +100,6 @@ const app = {
         // Response Outputs
         responseStatus: document.getElementById('response-status'),
         responseTime: document.getElementById('response-time'),
-        processedUrl: document.getElementById('processed-url'),
-        responseBody: document.getElementById('response-body'),
-        responseHeaders: document.getElementById('response-headers'),
-        scriptOutput: document.getElementById('script-output'),
     },
 
     // --- UI Rendering ---
@@ -124,11 +138,13 @@ const app = {
         const requests = getAllRequests();
         app.elements.requestsList.innerHTML = requests.length > 0
             ? requests.map(r => `
-                <button onclick="window.app.loadRequest('${r.id}')" 
-                    class="w-full text-left p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition text-sm flex justify-between items-center">
-                    <span>${r.title}</span>
-                    <span class="text-xs font-mono text-gray-500">${r.method}</span>
-                </button>
+                <div class="w-full p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition text-sm flex justify-between items-center">
+                    <button onclick="window.app.loadRequest('${r.id}')" class="flex-1 text-left flex justify-between items-center">
+                        <span>${r.title}</span>
+                        <span class="text-xs font-mono text-gray-500">${r.method}</span>
+                    </button>
+                    <button onclick="window.app.deleteRequest('${r.id}')" class="text-red-500 hover:text-red-700 ml-2 text-xs px-2">X</button>
+                </div>
             `).join('')
             : '<p class="text-gray-500">No requests saved.</p>';
 
@@ -136,20 +152,39 @@ const app = {
         const scripts = getAllScripts();
         app.elements.scriptsList.innerHTML = scripts.length > 0
             ? scripts.map(s => `
-                <button onclick="window.app.loadScriptToEditor('${s.id}')" 
-                    class="w-full text-left p-2 bg-purple-100 hover:bg-purple-200 rounded-lg transition text-sm flex justify-between items-center">
-                    <span>${s.name}</span>
-                    <button onclick="event.stopPropagation(); window.app.deleteScript('${s.id}')" class="text-red-500 hover:text-red-700 ml-2 text-xs">X</button>
-                </button>
+                <div class="w-full p-2 bg-purple-100 hover:bg-purple-200 rounded-lg transition text-sm flex justify-between items-center">
+                    <button onclick="window.app.loadScriptToEditor('${s.id}')" class="flex-1 text-left">
+                        <span>${s.name}</span>
+                    </button>
+                    <button onclick="window.app.deleteScript('${s.id}')" class="text-red-500 hover:text-red-700 ml-2 text-xs px-2">X</button>
+                </div>
             `).join('')
             : '<p class="text-gray-500">No scripts saved.</p>';
 
-        app.elements.postScriptSelect.innerHTML = '<option value="">-- No Script Selected --</option>' + 
-            scripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.postScriptId ? 'selected' : ''}>${s.name}</option>`).join('');
+        // Separate pre and post scripts
+        const preScripts = scripts.filter(s => s.type === 'pre-request');
+        const postScripts = scripts.filter(s => s.type !== 'pre-request');
+        
+        app.elements.preScriptSelect.innerHTML = '<option value="">-- No Pre-Script Selected --</option>' + 
+            preScripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.preScriptId ? 'selected' : ''}>${s.name}</option>`).join('');
+        
+        app.elements.postScriptSelect.innerHTML = '<option value="">-- No Post-Script Selected --</option>' + 
+            postScripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.postScriptId ? 'selected' : ''}>${s.name}</option>`).join('');
 
         // Update script editor fields based on currentScript
-        app.elements.postScriptEditor.value = app.currentScript.code;
+        if (app.codeMirrorEditors.postScript) {
+            app.codeMirrorEditors.postScript.setValue(app.currentScript.code || '');
+        } else {
+            app.elements.postScriptEditor.value = app.currentScript.code;
+        }
         app.elements.scriptNameInput.value = app.currentScript.name;
+        
+        if (app.codeMirrorEditors.preScript) {
+            app.codeMirrorEditors.preScript.setValue(app.currentPreScript.code || '');
+        } else {
+            app.elements.preScriptEditor.value = app.currentPreScript.code;
+        }
+        app.elements.preScriptNameInput.value = app.currentPreScript.name;
     },
     
     // --- Tab Switching Logic (same as original) ---
@@ -175,6 +210,11 @@ const app = {
                 panel.classList.add('hidden');
             }
         });
+        
+        // 3. Refresh content when switching to variables tab
+        if (tabName === 'variables') {
+            app.renderVariableStore();
+        }
     },
     
     switchMainTab(tabName) {
@@ -210,19 +250,29 @@ const app = {
                 rawHeaders: request.rawHeaders || [{ key: '', value: '' }]
             };
             app.currentScript.id = request.postScriptId;
+            app.currentPreScript.id = request.preScriptId;
             app.elements.urlInput.value = request.url;
             app.elements.methodSelect.value = request.method;
             app.elements.bodyTextarea.value = request.body;
             app.elements.requestTitleInput.value = request.title;
             app.elements.postScriptSelect.value = request.postScriptId || '';
+            app.elements.preScriptSelect.value = request.preScriptId || '';
             
             const scripts = getAllScripts();
-            const script = scripts.find(s => s.id === request.postScriptId);
-            if (script) {
-                app.currentScript.name = script.name;
-                app.currentScript.code = script.code;
+            const postScript = scripts.find(s => s.id === request.postScriptId);
+            if (postScript) {
+                app.currentScript.name = postScript.name;
+                app.currentScript.code = postScript.code;
             } else {
                 app.currentScript = { id: null, name: 'Untitled Script', code: '' };
+            }
+            
+            const preScript = scripts.find(s => s.id === request.preScriptId);
+            if (preScript) {
+                app.currentPreScript.name = preScript.name;
+                app.currentPreScript.code = preScript.code;
+            } else {
+                app.currentPreScript = { id: null, name: 'Untitled Pre-Script', code: '' };
             }
 
             app.renderHeaders();
@@ -242,14 +292,30 @@ const app = {
         }
     },
     
+    deleteRequest(id) {
+        if (confirm('Are you sure you want to delete this request?')) {
+            let requests = getAllRequests().filter(r => r.id !== id);
+            saveCollection(STORAGE_KEYS.REQUESTS, requests);
+            app.renderCollections();
+            if (app.currentRequest.id === id) {
+                // Clear current request if it's the one being deleted
+                app.currentRequest.id = null;
+            }
+        }
+    },
+
     deleteScript(id) {
          if (confirm('Are you sure you want to delete this script?')) {
             let scripts = getAllScripts().filter(s => s.id !== id);
-            saveCollection(STORAGE_KEYS.SCRIPTS, scripts); // Assuming saveCollection is accessible or imported. Let's make sure it is from storage.js.
+            saveCollection(STORAGE_KEYS.SCRIPTS, scripts);
             app.renderCollections();
             if (app.currentRequest.postScriptId === id) {
                 app.currentRequest.postScriptId = '';
                 app.elements.postScriptSelect.value = '';
+            }
+            if (app.currentRequest.preScriptId === id) {
+                app.currentRequest.preScriptId = '';
+                app.elements.preScriptSelect.value = '';
             }
         }
     },
@@ -293,6 +359,7 @@ const app = {
             method: app.elements.methodSelect.value,
             rawHeaders: app.currentRequest.rawHeaders.filter(h => h.key), 
             body: app.elements.bodyTextarea.value,
+            preScriptId: app.elements.preScriptSelect.value,
             postScriptId: app.elements.postScriptSelect.value,
         };
         
@@ -305,7 +372,9 @@ const app = {
 
     saveCurrentScript() {
         const scriptName = app.elements.scriptNameInput.value || 'Untitled Script';
-        const scriptCode = app.elements.postScriptEditor.value;
+        const scriptCode = app.codeMirrorEditors.postScript 
+            ? app.codeMirrorEditors.postScript.getValue() 
+            : app.elements.postScriptEditor.value;
 
         const scriptToSave = {
             id: app.currentScript.id, 
@@ -314,7 +383,7 @@ const app = {
         };
 
         const savedScript = saveScript(scriptToSave);
-        app.currentScript.id = savedScript.id; 
+        app.currentScript = savedScript; // Update entire current script object
         app.currentRequest.postScriptId = savedScript.id;
         
         alert(`Script saved as: ${savedScript.name}`);
@@ -325,24 +394,28 @@ const app = {
 
     handleSend() {
         const rawHeaders = app.currentRequest.rawHeaders.filter(h => h.key || h.value);
+        const preScriptId = app.elements.preScriptSelect.value;
         const postScriptId = app.elements.postScriptSelect.value;
         
-        app.elements.responseBody.textContent = 'Sending request...';
+        const responseBodyCode = document.getElementById('response-body-code');
+        if (responseBodyCode) responseBodyCode.textContent = 'Sending request...';
+        
         app.elements.responseStatus.textContent = 'Status: Sending...';
-        app.elements.scriptOutput.textContent = '';
-        app.switchMainTab('response'); 
+        document.getElementById('script-output').textContent = '';
+        app.switchMainTab('result'); 
         
         executeRequest(
             app.elements.urlInput.value,
             app.elements.methodSelect.value,
             rawHeaders,
             app.elements.bodyTextarea.value,
+            preScriptId,
             postScriptId,
             app.displayResponse // Pass the UI function to the request module
         );
     },
 
-    displayResponse(response, responseData, scriptOutput, processedUrl, duration) {
+    displayResponse(requestDetails, response, responseData, scriptOutput, processedUrl, duration) {
         // 1. Status and Time
         const status = response.status || 'N/A';
         const statusText = response.statusText || 'N/A';
@@ -351,30 +424,65 @@ const app = {
         app.elements.responseStatus.className = `font-bold ${statusColor}`;
         app.elements.responseStatus.textContent = `Status: ${status} ${statusText}`;
         app.elements.responseTime.textContent = `Time: ${duration}ms`;
-        app.elements.processedUrl.textContent = `URL: ${processedUrl.substring(0, 50)}...`;
 
-        // 2. Response Body
-        try {
-            const formattedBody = typeof responseData === 'object' 
-                ? JSON.stringify(responseData, null, 2) 
-                : String(responseData);
-            app.elements.responseBody.textContent = formattedBody;
-        } catch (e) {
-            app.elements.responseBody.textContent = String(responseData);
+        // 2. Request Summary
+        document.getElementById('request-line').textContent = 
+            `${requestDetails.method} ${requestDetails.processedUrl} HTTP/1.1`;
+        
+        let requestHeadersText = '';
+        Object.entries(requestDetails.headers).forEach(([key, value]) => {
+            requestHeadersText += `${key}: ${value}\n`;
+        });
+        document.getElementById('request-headers').textContent = requestHeadersText || 'No headers';
+        
+        // Request Body
+        const requestBodySection = document.getElementById('request-body-section');
+        if (requestDetails.body) {
+            requestBodySection.classList.remove('hidden');
+            const requestBodyCode = document.getElementById('request-body-code');
+            
+            try {
+                const bodyJson = JSON.parse(requestDetails.body);
+                const formattedJson = JSON.stringify(bodyJson, null, 2);
+                requestBodyCode.textContent = formattedJson;
+                requestBodyCode.className = 'language-json';
+                Prism.highlightElement(requestBodyCode);
+            } catch (e) {
+                // Not JSON, display as plain text
+                requestBodyCode.textContent = requestDetails.body;
+                requestBodyCode.className = 'language-markup';
+                Prism.highlightElement(requestBodyCode);
+            }
+        } else {
+            requestBodySection.classList.add('hidden');
         }
 
         // 3. Response Headers
-        let headerText = '';
+        let responseHeaderText = '';
         if (response.headers) {
             response.headers.forEach((value, name) => {
-                headerText += `${name}: ${value}\n`;
+                responseHeaderText += `${name}: ${value}\n`;
             });
         }
-        app.elements.responseHeaders.textContent = headerText;
+        document.getElementById('response-headers').textContent = responseHeaderText || 'No headers';
 
-        // 4. Script Output
-        app.elements.scriptOutput.textContent = scriptOutput;
-        app.renderVariableStore(); 
+        // 4. Response Body with Syntax Highlighting
+        const responseBodyCode = document.getElementById('response-body-code');
+        
+        if (typeof responseData === 'object' && responseData !== null) {
+            const formattedJson = JSON.stringify(responseData, null, 2);
+            responseBodyCode.textContent = formattedJson;
+            responseBodyCode.className = 'language-json';
+            Prism.highlightElement(responseBodyCode);
+        } else {
+            responseBodyCode.textContent = String(responseData);
+            responseBodyCode.className = 'language-markup';
+            Prism.highlightElement(responseBodyCode);
+        }
+
+        // 5. Script Output
+        document.getElementById('script-output').textContent = scriptOutput || 'No script output';
+        app.renderVariableStore();
     },
 
     handleImport(event) {
@@ -425,6 +533,36 @@ const app = {
         app.switchSidebarTab('variables');
         app.switchMainTab('request');
 
+        // Initialize CodeMirror editors
+        app.codeMirrorEditors.preScript = CodeMirror.fromTextArea(
+            app.elements.preScriptEditor,
+            {
+                mode: 'javascript',
+                theme: 'dracula',
+                lineNumbers: true,
+                matchBrackets: true,
+                autoCloseBrackets: true,
+                styleActiveLine: true,
+                indentUnit: 2,
+                tabSize: 2,
+                lineWrapping: true
+            }
+        );
+
+        app.codeMirrorEditors.postScript = CodeMirror.fromTextArea(
+            app.elements.postScriptEditor,
+            {
+                mode: 'javascript',
+                theme: 'dracula',
+                lineNumbers: true,
+                matchBrackets: true,
+                autoCloseBrackets: true,
+                styleActiveLine: true,
+                indentUnit: 2,
+                tabSize: 2,
+                lineWrapping: true
+            }
+        );
 
         // Attach event listeners
         document.getElementById('send-btn').onclick = app.handleSend;
@@ -441,10 +579,25 @@ const app = {
                 setVariable(key, value);
                 document.getElementById('var-key-input').value = '';
                 document.getElementById('var-value-input').value = '';
+                app.renderVariableStore(); // Re-render the variables list
             } else {
                 alert('Variable key cannot be empty.');
             }
         };
+        document.getElementById('pre-script-select').onchange = (e) => {
+            const selectedId = e.target.value;
+            app.currentRequest.preScriptId = selectedId;
+            
+            const scripts = getAllScripts();
+            const script = scripts.find(s => s.id === selectedId);
+            if (script) {
+                app.currentPreScript = script;
+            } else {
+                app.currentPreScript = { id: null, name: 'Untitled Pre-Script', code: '' };
+            }
+            app.renderCollections();
+        };
+        
         document.getElementById('post-script-select').onchange = (e) => {
             const selectedId = e.target.value;
             app.currentRequest.postScriptId = selectedId;
@@ -456,6 +609,27 @@ const app = {
             } else {
                 app.currentScript = { id: null, name: 'Untitled Script', code: '' };
             }
+            app.renderCollections();
+        };
+        
+        document.getElementById('save-pre-script-btn').onclick = () => {
+            const scriptName = app.elements.preScriptNameInput.value || 'Untitled Pre-Script';
+            const scriptCode = app.codeMirrorEditors.preScript 
+                ? app.codeMirrorEditors.preScript.getValue() 
+                : app.elements.preScriptEditor.value;
+
+            const scriptToSave = {
+                id: app.currentPreScript.id,
+                name: scriptName,
+                code: scriptCode,
+                type: 'pre-request'
+            };
+
+            const savedScript = saveScript(scriptToSave);
+            app.currentPreScript = savedScript; // Update entire current pre-script object
+            app.currentRequest.preScriptId = savedScript.id;
+            
+            alert(`Pre-request script saved as: ${savedScript.name}`);
             app.renderCollections();
         };
 

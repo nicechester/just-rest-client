@@ -6,7 +6,7 @@
 // --- Module Imports ---
 // Import necessary functions and variables from other modules.
 import { variableStore } from './variable.js'; // Import the variable store object for templating
-import { executePostScript } from './scripting.js'; // Import the script execution engine
+import { executePostScript, executePreScript } from './scripting.js'; // Import the script execution engine
 
 // --- Core Templating Function ---
 
@@ -37,13 +37,20 @@ function applyTemplate(templateString) {
  * @param {string} method - The HTTP method (GET, POST, etc.).
  * @param {Array<Object>} rawHeaders - Array of {key, value} header objects.
  * @param {string} rawBody - The request body template string.
+ * @param {string} preScriptId - The ID of the script to run before the request.
  * @param {string} postScriptId - The ID of the script to run after the request.
  * @param {function} displayResponse - UI function to update the response panel.
  */
-async function executeRequest(rawUrl, method, rawHeaders, rawBody, postScriptId, displayResponse) {
+async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptId, postScriptId, displayResponse) {
   const startTime = Date.now();
 
-  // 1. Apply templating
+  // 0. Run pre-request script first
+  let scriptOutput = '';
+  if (preScriptId) {
+    scriptOutput = executePreScript(preScriptId);
+  }
+
+  // 1. Apply templating (after pre-script has run and potentially updated variables)
   const processedUrl = applyTemplate(rawUrl);
   const processedBody = (method !== 'GET' && method !== 'HEAD') ? applyTemplate(rawBody) : null;
   
@@ -55,7 +62,14 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, postScriptId,
     }
   });
 
-  let scriptOutput = '';
+  // Store request details for display
+  const requestDetails = {
+    method: method,
+    processedUrl: processedUrl,
+    headers: headers,
+    body: processedBody
+  };
+
   let responseData = null;
   let response = null;
 
@@ -72,7 +86,8 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, postScriptId,
     // Create a clone for the script/UI to read, as response body can only be read once
     const responseClone = response.clone(); 
 
-    if (contentType && contentType.includes('application/json')) {
+    // Check if content type indicates JSON (handles application/json, application/ld+json, etc.)
+    if (contentType && (contentType.includes('json') || contentType.includes('javascript'))) {
       responseData = await responseClone.json();
     } else {
       // Fallback for non-JSON content (e.g., HTML, XML, text)
@@ -80,7 +95,8 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, postScriptId,
     }
     
     // 4. Run post-request script
-    scriptOutput = executePostScript(postScriptId, response, responseData);
+    const postScriptOutput = executePostScript(postScriptId, response, responseData);
+    scriptOutput += postScriptOutput;
 
   } catch (error) {
     console.error('Request execution error:', error);
@@ -96,13 +112,13 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, postScriptId,
 
   const duration = Date.now() - startTime;
 
-  // 5. Display Results
+  // 5. Display Results with request details
   // This function must be provided by app.js to update the UI
   if (typeof displayResponse === 'function') {
-    displayResponse(response, responseData, scriptOutput, processedUrl, duration);
+    displayResponse(requestDetails, response, responseData, scriptOutput, processedUrl, duration);
   } else {
     console.warn('UI function displayResponse not provided. Results logged to console:', 
-                 { response, responseData, scriptOutput });
+                 { requestDetails, response, responseData, scriptOutput });
   }
 }
 

@@ -6,12 +6,18 @@
 // The variableStore object holds the key/value pairs
 let variableStore = {};
 
+// Store reference to the save function
+let saveVariableStoreFn = null;
+
 /**
  * Initializes the variable store from storage.
  * @param {function} loadVariableStoreFn - Function to load store from persistence.
- * @param {function} saveVariableStoreFn - Function to save store to persistence.
+ * @param {function} saveVariableStoreFnArg - Function to save store to persistence.
  */
-function loadInitialVariables(loadVariableStoreFn) {
+function loadInitialVariables(loadVariableStoreFn, saveVariableStoreFnArg) {
+  // Store the save function for later use
+  saveVariableStoreFn = saveVariableStoreFnArg;
+  
   if (typeof loadVariableStoreFn === 'function') {
     variableStore = loadVariableStoreFn();
   } else {
@@ -25,20 +31,18 @@ function loadInitialVariables(loadVariableStoreFn) {
 
 /**
  * Updates or sets a variable in the global store and persists the change.
- * NOTE: Assumes saveVariableStoreFn is available when called from the main app.
  * @param {string} key - The name of the variable.
  * @param {string} value - The value to assign to the variable.
  */
 function setVariable(key, value) {
-  // We assume the saveVariableStore function is passed/available globally
-  // by the main application controller (app.js)
-  
   // Ensure the value is stringified for complex types if necessary, though 
   // typical API variables are usually strings.
   variableStore[key] = String(value);
 
-  // Persist the updated store to localStorage. This function MUST be imported and called by app.js.
-  // We rely on app.js to call saveVariableStore(variableStore);
+  // Persist the updated store to localStorage
+  if (typeof saveVariableStoreFn === 'function') {
+    saveVariableStoreFn(variableStore);
+  }
 }
 
 /**
