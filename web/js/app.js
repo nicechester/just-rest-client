@@ -361,10 +361,31 @@ const app = {
 
     updateHeader(index, field, value) {
         app.currentRequest.rawHeaders[index][field] = value;
-        if (index === app.currentRequest.rawHeaders.length - 1 && (app.currentRequest.rawHeaders[index].key || app.currentRequest.rawHeaders[index].value)) {
+        // Only add a new row if we're on the last row and both fields have some content
+        if (index === app.currentRequest.rawHeaders.length - 1 && 
+            app.currentRequest.rawHeaders[index].key && 
+            app.currentRequest.rawHeaders[index].value) {
+            // Add new empty row
             app.currentRequest.rawHeaders.push({ key: '', value: '' });
-            app.renderHeaders();
+            // Instead of re-rendering everything, just append the new row
+            app.addHeaderRow(app.currentRequest.rawHeaders.length - 1);
         }
+    },
+    
+    addHeaderRow(index) {
+        const container = app.elements.headersContainer;
+        const h = app.currentRequest.rawHeaders[index];
+        const div = document.createElement('div');
+        div.className = 'flex space-x-2';
+        div.innerHTML = `
+            <input type="text" value="${h.key}" placeholder="Key" oninput="window.app.updateHeader(${index}, 'key', this.value)" 
+                class="w-1/3 p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
+            <input type="text" value="${h.value}" placeholder="Value" oninput="window.app.updateHeader(${index}, 'value', this.value)" 
+                class="flex-1 p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
+            <button onclick="window.app.removeHeader(${index})" 
+                class="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200 transition text-sm">Remove</button>
+        `;
+        container.appendChild(div);
     },
 
     removeHeader(index) {
