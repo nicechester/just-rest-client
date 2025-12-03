@@ -15,6 +15,12 @@ input[type="text"] {
     border-radius: 0.5rem;
 }
 
+/* Monospace font for code editors */
+.code-input {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px;
+}
+
 /* Custom scrollbar for better visibility */
 .code-input::-webkit-scrollbar,
 .code-output::-webkit-scrollbar {
@@ -32,4 +38,57 @@ input[type="text"] {
     color: white;
     background-color: #3b82f6;
     /* Blue-500 */
+}
+
+/* JSON Syntax Highlighting Overrides */
+pre[class*="language-"] {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+pre[class*="language-"] code {
+    background: transparent;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+/* Prism theme customization for better readability */
+.token.string {
+    color: #a5d6a7;
+}
+
+.token.number {
+    color: #90caf9;
+}
+
+.token.boolean {
+    color: #ce93d8;
+}
+
+.token.null {
+    color: #ffab91;
+}
+
+.token.property {
+    color: #80deea;
+}
+
+/* CodeMirror styling */
+.CodeMirror {
+    height: 150px;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    font-size: 13px;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.CodeMirror-focused {
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 1px #8b5cf6;
+}
+
+.CodeMirror-scroll {
+    min-height: 150px;
 }
