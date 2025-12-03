@@ -148,7 +148,7 @@ function saveScript(scriptObject) {
  * @param {Array<Object>} requests - The list of all saved requests.
  * @param {Array<Object>} scripts - The list of all saved scripts.
  */
-function exportAllData(variableStore, requests, scripts) {
+async function exportAllData(variableStore, requests, scripts) {
   const exportData = {
     metadata: {
       version: '1.0',
@@ -160,19 +160,49 @@ function exportAllData(variableStore, requests, scripts) {
   };
 
   const jsonString = JSON.stringify(exportData, null, 2);
-  const blob = new Blob([jsonString], { type: 'application/json' });
   
-  // Create a temporary link element to trigger the download
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `rest-client-export-${Date.now()}.json`;
-  
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  console.log('Export initiated.');
+  try {
+    // Check if we're running in Tauri
+    if (window.__TAURI__) {
+      // Use Tauri's save dialog
+      const { save } = window.__TAURI__.dialog;
+      const { writeTextFile } = window.__TAURI__.fs;
+      
+      // Show save dialog
+      const filePath = await save({
+        defaultPath: `rest-client-export-${Date.now()}.json`,
+        filters: [{
+          name: 'JSON',
+          extensions: ['json']
+        }]
+      });
+      
+      if (filePath) {
+        // Write the file
+        await writeTextFile(filePath, jsonString);
+        alert('Export completed successfully!');
+      } else {
+        console.log('Export cancelled by user');
+      }
+    } else {
+      // Browser fallback (standard download)
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `rest-client-export-${Date.now()}.json`;
+      
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      alert('Export completed! Check your Downloads folder.');
+    }
+  } catch (error) {
+    console.error('Export error:', error);
+    alert('Export failed: ' + error.message);
+  }
 }
 
 /**
