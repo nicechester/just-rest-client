@@ -10,9 +10,16 @@ Just REST Client is a lightweight, single-page application (SPA) client built to
 
 ### Web Version
 You can access the live version of the application here:
-[https://nicechester.github.io/just-rest-client/](https://nicechester.github.io/just-rest-client/)
+[https://nicechester.github.io/just-rest-client/web/](https://nicechester.github.io/just-rest-client/web/)
 
 ### Desktop App (Tauri)
+
+#### Download
+
+Download MacOS binary at https://github.com/nicechester/just-rest-client/blob/main/downloads/just_rest_client_0.1.0_aarch64.dmg 
+
+#### Build from source codes
+
 Run as a native desktop application with no CORS restrictions:
 
 ```bash
