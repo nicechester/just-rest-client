@@ -1,0 +1,12 @@
+src-tauri/
+target/
+node_modules/
+.git/
+.gitignore
+TAURI.md
+README.md
+LICENSE
+package.json
+*.log
+.DS_Store
+
