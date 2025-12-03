@@ -8,6 +8,20 @@
 import { variableStore } from './variable.js'; // Import the variable store object for templating
 import { executePostScript, executePreScript } from './scripting.js'; // Import the script execution engine
 
+// Import Tauri HTTP plugin (will only work in Tauri app)
+let tauriFetch = null;
+let isTauri = false;
+
+try {
+  // Dynamically import Tauri HTTP plugin if available
+  const httpModule = await import('@tauri-apps/plugin-http');
+  tauriFetch = httpModule.fetch;
+  isTauri = true;
+} catch (e) {
+  // Not in Tauri or plugin not available, use browser fetch
+  isTauri = false;
+}
+
 // --- Core Templating Function ---
 
 /**
@@ -75,7 +89,10 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptId, 
 
   try {
     // 2. Execute Fetch
-    response = await fetch(processedUrl, {
+    // Use Tauri's native fetch if available (no CORS), otherwise browser fetch
+    const fetchFn = tauriFetch || fetch;
+    
+    response = await fetchFn(processedUrl, {
       method: method,
       headers: headers,
       body: processedBody,
@@ -83,14 +100,11 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptId, 
 
     // 3. Parse Response Body
     const contentType = response.headers.get('content-type');
-    // Create a clone for the script/UI to read, as response body can only be read once
     const responseClone = response.clone(); 
 
-    // Check if content type indicates JSON (handles application/json, application/ld+json, etc.)
     if (contentType && (contentType.includes('json') || contentType.includes('javascript'))) {
       responseData = await responseClone.json();
     } else {
-      // Fallback for non-JSON content (e.g., HTML, XML, text)
       responseData = await responseClone.text();
     }
     
@@ -99,15 +113,17 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptId, 
     scriptOutput += postScriptOutput;
 
   } catch (error) {
-    console.error('Request execution error:', error);
-    scriptOutput += `[Execution Error] Network or Parsing failure: ${error.message}\n`;
+    const errorMsg = error?.message || error?.toString() || 'Unknown error';
+    scriptOutput += `[Execution Error] Network or Parsing failure: ${errorMsg}\n`;
+    scriptOutput += `Using Tauri HTTP: ${!!tauriFetch}\n`;
+    
     // Set a mock response object for display in case of network failure
     response = {
       status: 'N/A',
       statusText: 'Network Error',
       headers: new Headers(),
     };
-    responseData = { error: error.message };
+    responseData = { error: errorMsg };
   }
 
   const duration = Date.now() - startTime;

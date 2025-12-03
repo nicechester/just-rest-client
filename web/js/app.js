@@ -369,6 +369,36 @@ const app = {
         alert(`Request saved as: ${savedReq.title}`);
         app.renderCollections();
     },
+    
+    saveAsNewRequest() {
+        // Force create a new request by clearing the ID
+        app.currentRequest.id = null;
+        app.saveCurrentRequest();
+    },
+    
+    newRequest() {
+        // Clear the form for a new request
+        app.currentRequest = {
+            id: null,
+            title: 'New Request',
+            url: '',
+            method: 'GET',
+            rawHeaders: [{ key: '', value: '' }],
+            body: '',
+            preScriptId: '',
+            postScriptId: ''
+        };
+        
+        app.elements.requestTitleInput.value = 'New Request';
+        app.elements.urlInput.value = '';
+        app.elements.methodSelect.value = 'GET';
+        app.elements.bodyTextarea.value = '';
+        app.elements.preScriptSelect.value = '';
+        app.elements.postScriptSelect.value = '';
+        
+        app.renderHeaders();
+        app.switchMainTab('request');
+    },
 
     saveCurrentScript() {
         const scriptName = app.elements.scriptNameInput.value || 'Untitled Script';
@@ -566,7 +596,8 @@ const app = {
 
         // Attach event listeners
         document.getElementById('send-btn').onclick = app.handleSend;
-        document.getElementById('save-request-btn').onclick = app.saveCurrentRequest;
+        document.getElementById('new-request-btn').onclick = app.newRequest;
+        document.getElementById('save-request-btn').onclick = app.saveAsNewRequest;
         document.getElementById('save-script-btn').onclick = app.saveCurrentScript;
         document.getElementById('add-header-btn').onclick = () => {
             app.currentRequest.rawHeaders.push({ key: '', value: '' });
@@ -649,4 +680,9 @@ const app = {
 window.app = app;
 
 // Start the application after the DOM is fully loaded
-window.onload = app.init;
+// Check if DOM is already loaded (common with ES modules/Vite)
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', app.init);
+} else {
+    app.init();
+}

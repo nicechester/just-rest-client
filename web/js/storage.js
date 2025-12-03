@@ -92,6 +92,7 @@ function getAllRequests() {
  */
 function saveRequest(requestObject) {
   const requests = getAllRequests();
+  
   if (!requestObject.id) {
     requestObject.id = `req-${Date.now()}`;
   }
