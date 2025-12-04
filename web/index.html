@@ -48,6 +48,16 @@
                 <!-- Variables Tab Content -->
                 <div id="tab-panel-variables" data-panel="variables" class="tab-panel space-y-4">
                     <h2 class="text-xl font-semibold mb-3 text-gray-700">Environment Variables</h2>
+                    
+                    <!-- Group Selector -->
+                    <div class="flex items-center space-x-2 pb-3 border-b">
+                        <label class="text-xs font-medium text-gray-600">Group:</label>
+                        <select id="variables-group-select" class="flex-1 p-2 border rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500">
+                            <option value="global">global</option>
+                        </select>
+                        <button id="new-var-group-btn" class="bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 transition text-xs" title="Create new group">+ Group</button>
+                    </div>
+                    
                     <div id="variables-list" class="space-y-2 text-sm max-h-96 overflow-y-auto">
                         <!-- Variables will be rendered here -->
                     </div>
@@ -61,6 +71,16 @@
                 <!-- Saved Requests Tab Content -->
                 <div id="tab-panel-requests" data-panel="requests" class="tab-panel hidden space-y-4">
                     <h2 class="text-xl font-semibold mb-3 text-gray-700">Saved Requests</h2>
+                    
+                    <!-- Group Selector -->
+                    <div class="flex items-center space-x-2 pb-3 border-b">
+                        <label class="text-xs font-medium text-gray-600">Group:</label>
+                        <select id="requests-group-select" class="flex-1 p-2 border rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500">
+                            <option value="global">global</option>
+                        </select>
+                        <button id="new-request-group-btn" class="bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 transition text-xs" title="Create new group">+ Group</button>
+                    </div>
+                    
                     <div id="requests-list" class="space-y-2 text-sm max-h-64 overflow-y-auto">
                         <!-- Saved requests will be loaded here -->
                         <p class="text-gray-500">No requests saved.</p>
@@ -70,6 +90,16 @@
                 <!-- Saved Scripts Tab Content -->
                 <div id="tab-panel-scripts" data-panel="scripts" class="tab-panel hidden space-y-4">
                     <h2 class="text-xl font-semibold mb-3 text-gray-700">Saved Scripts</h2>
+                    
+                    <!-- Group Selector -->
+                    <div class="flex items-center space-x-2 pb-3 border-b">
+                        <label class="text-xs font-medium text-gray-600">Group:</label>
+                        <select id="scripts-group-select" class="flex-1 p-2 border rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500">
+                            <option value="global">global</option>
+                        </select>
+                        <button id="new-script-group-btn" class="bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 transition text-xs" title="Create new group">+ Group</button>
+                    </div>
+                    
                     <div id="scripts-list" class="space-y-2 text-sm max-h-64 overflow-y-auto">
                         <!-- Saved scripts will be loaded here -->
                         <p class="text-gray-500">No scripts saved.</p>
@@ -246,6 +276,19 @@
             <div class="flex justify-end space-x-2">
                 <button id="confirm-cancel" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">Cancel</button>
                 <button id="confirm-ok" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Input Dialog (for creating groups) -->
+    <div id="input-dialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl">
+            <h3 id="input-dialog-title" class="text-lg font-semibold mb-2">Enter Value</h3>
+            <p id="input-dialog-message" class="text-gray-600 text-sm mb-3"></p>
+            <input type="text" id="input-dialog-input" class="w-full p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 mb-4" placeholder="">
+            <div class="flex justify-end space-x-2">
+                <button id="input-dialog-cancel" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">Cancel</button>
+                <button id="input-dialog-ok" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">OK</button>
             </div>
         </div>
     </div>

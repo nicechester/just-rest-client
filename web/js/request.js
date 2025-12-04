@@ -5,7 +5,7 @@
 
 // --- Module Imports ---
 // Import necessary functions and variables from other modules.
-import { variableStore } from './variable.js'; // Import the variable store object for templating
+import { getFlattenedVariables } from './variable.js'; // Import function to get flattened variables for templating
 import { executePostScript, executePreScript } from './scripting.js'; // Import the script execution engine
 
 // Import Tauri HTTP plugin (will only work in Tauri app)
@@ -26,18 +26,22 @@ try {
 
 /**
  * Replaces all {{variableName}} tags in a string with the corresponding value
- * from the global variable store.
+ * from the flattened variable store (includes global + active group).
  * @param {string} templateString - The string containing template tags.
+ * @param {string} activeGroup - The active group for variables (optional).
  * @return {string} The string with variables substituted.
  */
-function applyTemplate(templateString) {
+function applyTemplate(templateString, activeGroup = undefined) {
   if (!templateString) {
     return templateString;
   }
   
+  // Get flattened variables (global + active group)
+  const flatVars = getFlattenedVariables(activeGroup);
+  
   return templateString.replace(/{{(.*?)}}/g, (match, variableName) => {
     const key = variableName.trim();
-    const value = variableStore[key]; // Access the imported variableStore object
+    const value = flatVars[key];
     // Return the value if it exists, otherwise return the original tag.
     return value !== undefined ? String(value) : match;
   });
@@ -54,8 +58,9 @@ function applyTemplate(templateString) {
  * @param {string} preScriptId - The ID of the script to run before the request.
  * @param {string} postScriptId - The ID of the script to run after the request.
  * @param {function} displayResponse - UI function to update the response panel.
+ * @param {string} activeVariableGroup - The active variable group for templating.
  */
-async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptId, postScriptId, displayResponse) {
+async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptId, postScriptId, displayResponse, activeVariableGroup = 'global') {
   const startTime = Date.now();
 
   // 0. Run pre-request script first
@@ -65,13 +70,13 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptId, 
   }
 
   // 1. Apply templating (after pre-script has run and potentially updated variables)
-  const processedUrl = applyTemplate(rawUrl);
-  const processedBody = (method !== 'GET' && method !== 'HEAD') ? applyTemplate(rawBody) : null;
+  const processedUrl = applyTemplate(rawUrl, activeVariableGroup);
+  const processedBody = (method !== 'GET' && method !== 'HEAD') ? applyTemplate(rawBody, activeVariableGroup) : null;
   
   const headers = {};
   rawHeaders.forEach(h => {
     if (h.key) {
-      const processedValue = applyTemplate(h.value || '');
+      const processedValue = applyTemplate(h.value || '', activeVariableGroup);
       headers[h.key.trim()] = processedValue;
     }
   });
