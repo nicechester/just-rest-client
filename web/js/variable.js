@@ -1,13 +1,17 @@
 /**
  * @fileoverview Manages the global variable store, ensuring it is initialized
  * from localStorage via the storage module.
+ * Now supports grouped variables with a global scope.
  */
 
-// The variableStore object holds the key/value pairs
+// The variableStore object holds grouped key/value pairs: { groupName: { key: value } }
 let variableStore = {};
 
 // Store reference to the save function
 let saveVariableStoreFn = null;
+
+// Current active group for variable operations (used by scripts)
+let currentActiveGroup = 'global';
 
 /**
  * Initializes the variable store from storage.
@@ -23,21 +27,35 @@ function loadInitialVariables(loadVariableStoreFn, saveVariableStoreFnArg) {
   } else {
     // Default variables if storage module is not available (for fallback)
     variableStore = {
-      'baseUrl': 'https://api.example.com',
-      'userId': '1001'
+      'global': {
+        'baseUrl': 'https://api.example.com',
+        'userId': '1001'
+      }
     };
   }
 }
 
 /**
- * Updates or sets a variable in the global store and persists the change.
+ * Sets the active group for variable operations (used by scripts).
+ * @param {string} groupName - The group name to set as active.
+ */
+function setActiveGroupForScripts(groupName) {
+  currentActiveGroup = groupName;
+}
+
+/**
+ * Updates or sets a variable in the current active group and persists the change.
+ * This is used by scripts when they call setVar().
  * @param {string} key - The name of the variable.
  * @param {string} value - The value to assign to the variable.
  */
 function setVariable(key, value) {
-  // Ensure the value is stringified for complex types if necessary, though 
-  // typical API variables are usually strings.
-  variableStore[key] = String(value);
+  // Ensure the active group exists
+  if (!variableStore[currentActiveGroup]) {
+    variableStore[currentActiveGroup] = {};
+  }
+  
+  variableStore[currentActiveGroup][key] = String(value);
 
   // Persist the updated store to localStorage
   if (typeof saveVariableStoreFn === 'function') {
@@ -46,11 +64,26 @@ function setVariable(key, value) {
 }
 
 /**
- * Returns the entire variable store.
- * @return {Object} The current variable store object.
+ * Returns the entire grouped variable store.
+ * @return {Object} The current variable store object with structure { groupName: { key: value } }
  */
 function getVariableStore() {
   return variableStore;
+}
+
+/**
+ * Returns a flattened variable store for templating.
+ * Includes variables from the global group AND the current active group.
+ * Active group variables override global ones if there are conflicts.
+ * @param {string} activeGroup - The currently active group (optional, defaults to currentActiveGroup)
+ * @return {Object} Flat object with all accessible variables
+ */
+function getFlattenedVariables(activeGroup = currentActiveGroup) {
+  const globalVars = variableStore['global'] || {};
+  const activeVars = (activeGroup !== 'global' && variableStore[activeGroup]) ? variableStore[activeGroup] : {};
+  
+  // Merge: global variables + active group variables (active group takes precedence)
+  return { ...globalVars, ...activeVars };
 }
 
 /**
@@ -60,5 +93,7 @@ export {
   variableStore, // Export the raw object for external read access (e.g., in request.js)
   setVariable,
   getVariableStore,
+  getFlattenedVariables,
+  setActiveGroupForScripts,
   loadInitialVariables // Export initialization function for app.js to call
 };

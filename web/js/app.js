@@ -16,14 +16,21 @@ import {
     saveScript, 
     exportAllData,
     saveCollection,
-    STORAGE_KEYS
+    STORAGE_KEYS,
+    DEFAULT_GROUP,
+    getActiveGroups,
+    setActiveGroup,
+    getAllGroups,
+    addGroupName
 } from './storage.js';
 
 import { 
     getVariableStore, 
     setVariable, 
     variableStore, // Need this initial export to set default variables
-    loadInitialVariables // Function to load variables from storage in variables.js
+    loadInitialVariables, // Function to load variables from storage in variables.js
+    getFlattenedVariables,
+    setActiveGroupForScripts
 } from './variable.js';
 
 import { 
@@ -52,23 +59,33 @@ const app = {
         rawHeaders: [{ key: '', value: '' }],
         body: '',
         preScriptId: '',
-        postScriptId: ''
+        postScriptId: '',
+        group: DEFAULT_GROUP
     },
     
     currentScript: {
         id: null,
         name: 'Untitled Script',
-        code: ''
+        code: '',
+        group: DEFAULT_GROUP
     },
     
     currentPreScript: {
         id: null,
         name: 'Untitled Pre-Script',
-        code: ''
+        code: '',
+        group: DEFAULT_GROUP
     },
     
     currentSidebarTab: 'variables',
     currentMainTab: 'request',
+    
+    // Active groups for each collection type
+    activeGroups: {
+        variables: DEFAULT_GROUP,
+        requests: DEFAULT_GROUP,
+        scripts: DEFAULT_GROUP
+    },
     
     // CodeMirror editor instances
     codeMirrorEditors: {
@@ -98,6 +115,61 @@ const app = {
                 dialog.classList.add('hidden');
                 onConfirm();
             };
+            
+            newCancelBtn.onclick = () => {
+                dialog.classList.add('hidden');
+            };
+        }
+    },
+    
+    // Custom input dialog
+    inputDialog: {
+        show(title, message, placeholder, onConfirm) {
+            const dialog = document.getElementById('input-dialog');
+            const titleEl = document.getElementById('input-dialog-title');
+            const messageEl = document.getElementById('input-dialog-message');
+            const inputEl = document.getElementById('input-dialog-input');
+            const okBtn = document.getElementById('input-dialog-ok');
+            const cancelBtn = document.getElementById('input-dialog-cancel');
+            
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            inputEl.placeholder = placeholder || '';
+            inputEl.value = '';
+            dialog.classList.remove('hidden');
+            
+            // Focus on input
+            setTimeout(() => inputEl.focus(), 100);
+            
+            // Remove old listeners
+            const newOkBtn = okBtn.cloneNode(true);
+            const newCancelBtn = cancelBtn.cloneNode(true);
+            okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+            
+            // Handle Enter key in input
+            const newInputEl = inputEl.cloneNode(true);
+            inputEl.parentNode.replaceChild(newInputEl, inputEl);
+            
+            const handleSubmit = () => {
+                const value = newInputEl.value.trim();
+                dialog.classList.add('hidden');
+                if (value) {
+                    onConfirm(value);
+                }
+            };
+            
+            newInputEl.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSubmit();
+                } else if (e.key === 'Escape') {
+                    dialog.classList.add('hidden');
+                }
+            };
+            
+            // Add new listeners
+            newOkBtn.onclick = handleSubmit;
             
             newCancelBtn.onclick = () => {
                 dialog.classList.add('hidden');
@@ -140,7 +212,7 @@ const app = {
     
     applyTemplateToString(str) {
         if (!str) return str;
-        const vars = getVariableStore();
+        const vars = getFlattenedVariables(app.activeGroups.variables);
         return str.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
             return vars[varName] !== undefined ? vars[varName] : match;
         });
@@ -213,26 +285,31 @@ const app = {
     // --- UI Rendering ---
 
     renderVariableStore() {
-        const vars = getVariableStore();
-        app.elements.variablesList.innerHTML = Object.entries(vars).map(([key, value]) => `
-            <div class="variable-item bg-gray-100 p-2 rounded-lg hover:bg-gray-200 transition" data-var-key="${key}">
-                <div class="variable-display flex justify-between items-center cursor-pointer">
-                    <span class="font-mono text-xs text-gray-700 font-semibold">${key}</span>
-                    <span class="font-mono text-xs text-blue-600 truncate flex-1 mx-2">${value}</span>
-                    <button data-delete-var="${key}" class="delete-var-btn text-red-500 hover:text-red-700 ml-2 text-xs">X</button>
-                </div>
-                <div class="variable-edit hidden mt-2">
-                    <div class="flex space-x-2">
-                        <input type="text" class="edit-var-key flex-1 p-2 border rounded-lg text-xs font-mono" value="${key}" placeholder="Key">
-                        <input type="text" class="edit-var-value flex-1 p-2 border rounded-lg text-xs font-mono" value="${value}" placeholder="Value">
-                    </div>
-                    <div class="flex space-x-2 mt-2">
-                        <button class="save-var-btn flex-1 bg-green-500 text-white px-3 py-1 rounded text-xs hover:bg-green-600 transition">Save</button>
-                        <button class="cancel-var-btn flex-1 bg-gray-400 text-white px-3 py-1 rounded text-xs hover:bg-gray-500 transition">Cancel</button>
-                    </div>
-                </div>
+        const varStore = getVariableStore();
+        const activeGroup = app.activeGroups.variables;
+        const vars = varStore[activeGroup] || {};
+        
+        app.elements.variablesList.innerHTML = Object.entries(vars).length > 0
+            ? Object.entries(vars).map(([key, value]) => `
+                <div class="variable-item bg-gray-100 p-2 rounded-lg hover:bg-gray-200 transition" data-var-key="${key}">
+                    <div class="variable-display flex justify-between items-center cursor-pointer">
+                        <span class="font-mono text-xs text-gray-700 font-semibold">${key}</span>
+                        <span class="font-mono text-xs text-blue-600 truncate flex-1 mx-2">${value}</span>
+                        <button data-delete-var="${key}" class="delete-var-btn text-red-500 hover:text-red-700 ml-2 text-xs">X</button>
             </div>
-        `).join('');
+                    <div class="variable-edit hidden mt-2">
+                        <div class="flex space-x-2">
+                            <input type="text" class="edit-var-key flex-1 p-2 border rounded-lg text-xs font-mono" value="${key}" placeholder="Key">
+                            <input type="text" class="edit-var-value flex-1 p-2 border rounded-lg text-xs font-mono" value="${value}" placeholder="Value">
+                        </div>
+                        <div class="flex space-x-2 mt-2">
+                            <button class="save-var-btn flex-1 bg-green-500 text-white px-3 py-1 rounded text-xs hover:bg-green-600 transition">Save</button>
+                            <button class="cancel-var-btn flex-1 bg-gray-400 text-white px-3 py-1 rounded text-xs hover:bg-gray-500 transition">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('')
+            : '<p class="text-gray-500 text-xs">No variables in this group.</p>';
     },
     
     editVariable(key) {
@@ -257,15 +334,16 @@ const app = {
             return;
         }
         
+        const activeGroup = app.activeGroups.variables;
+        const varStore = getVariableStore();
+        
         // If key changed, delete old and add new
         if (newKey !== key) {
-            const vars = getVariableStore();
-            delete vars[key];
-            setVariable(newKey, newValue);
-        } else {
-            // Just update value
-            setVariable(key, newValue);
+            delete varStore[activeGroup][key];
         }
+        
+        varStore[activeGroup][newKey] = newValue;
+        saveVariableStore(varStore);
         
         app.renderVariableStore();
     },
@@ -276,6 +354,96 @@ const app = {
             item.querySelector('.variable-display').classList.remove('hidden');
             item.querySelector('.variable-edit').classList.add('hidden');
         }
+    },
+    
+    // --- Group Management ---
+    
+    renderGroupSelectors() {
+        // Render Variables Group Selector
+        const varGroups = getAllGroups('variables');
+        const varSelect = document.getElementById('variables-group-select');
+        console.log('Variable groups:', varGroups, 'Active:', app.activeGroups.variables);
+        varSelect.innerHTML = varGroups.map(g => 
+            `<option value="${g}" ${g === app.activeGroups.variables ? 'selected' : ''}>${g}</option>`
+        ).join('');
+        
+        // Render Requests Group Selector
+        const reqGroups = getAllGroups('requests');
+        const reqSelect = document.getElementById('requests-group-select');
+        console.log('Request groups:', reqGroups, 'Active:', app.activeGroups.requests);
+        reqSelect.innerHTML = reqGroups.map(g => 
+            `<option value="${g}" ${g === app.activeGroups.requests ? 'selected' : ''}>${g}</option>`
+        ).join('');
+        
+        // Render Scripts Group Selector
+        const scriptGroups = getAllGroups('scripts');
+        const scriptSelect = document.getElementById('scripts-group-select');
+        console.log('Script groups:', scriptGroups, 'Active:', app.activeGroups.scripts);
+        scriptSelect.innerHTML = scriptGroups.map(g => 
+            `<option value="${g}" ${g === app.activeGroups.scripts ? 'selected' : ''}>${g}</option>`
+        ).join('');
+    },
+    
+    switchGroup(type, groupName) {
+        console.log(`Switching ${type} group to: ${groupName}`);
+        app.activeGroups[type] = groupName;
+        setActiveGroup(type, groupName);
+        
+        if (type === 'variables') {
+            app.renderVariableStore();
+        } else if (type === 'requests') {
+            app.renderCollections();
+        } else if (type === 'scripts') {
+            app.renderCollections();
+        }
+        
+        console.log(`Active groups after switch:`, app.activeGroups);
+    },
+    
+    createNewGroup(type) {
+        console.log('createNewGroup called with type:', type);
+        
+        // Use custom input dialog instead of native prompt
+        app.inputDialog.show(
+            'Create New Group',
+            `Enter a name for the new ${type} group:`,
+            'e.g., production, staging, testing',
+            (groupName) => {
+                console.log('User entered group name:', groupName);
+                
+                const trimmedName = groupName.trim();
+                
+                // Check if group already exists (before switching)
+                const existingGroups = getAllGroups(type);
+                console.log('Existing groups before creation:', existingGroups);
+                
+                if (existingGroups.includes(trimmedName)) {
+                    alert('Group already exists!');
+                    return;
+                }
+                
+                // Create the group by adding an empty entry
+                if (type === 'variables') {
+                    const varStore = getVariableStore();
+                    varStore[trimmedName] = {};
+                    saveVariableStore(varStore);
+                    console.log('Created variable group:', trimmedName);
+                }
+                
+                // Persist the group name (so it survives even if empty)
+                addGroupName(type, trimmedName);
+                console.log('Persisted group name:', trimmedName);
+                
+                // Switch to the new group
+                app.switchGroup(type, trimmedName);
+                
+                // Render selectors to show the new group
+                app.renderGroupSelectors();
+                
+                console.log('Group created and switched successfully');
+                console.log('Groups after creation:', getAllGroups(type));
+            }
+        );
     },
 
     renderHeaders() {
@@ -297,8 +465,11 @@ const app = {
     },
 
     renderCollections() {
-        // Render Requests List
-        const requests = getAllRequests();
+        // Render Requests List (filtered by active group)
+        const allRequests = getAllRequests();
+        const activeRequestGroup = app.activeGroups.requests;
+        const requests = allRequests.filter(r => r.group === activeRequestGroup);
+        
         app.elements.requestsList.innerHTML = requests.length > 0
             ? requests.map(r => `
                 <div class="w-full p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition text-sm flex justify-between items-center">
@@ -309,10 +480,13 @@ const app = {
                     <button data-delete-request="${r.id}" class="delete-request-btn text-red-500 hover:text-red-700 ml-2 text-xs px-2">X</button>
                 </div>
             `).join('')
-            : '<p class="text-gray-500">No requests saved.</p>';
+            : '<p class="text-gray-500 text-xs">No requests in this group.</p>';
 
-        // Render Scripts List and Select
-        const scripts = getAllScripts();
+        // Render Scripts List and Select (filtered by active group)
+        const allScripts = getAllScripts();
+        const activeScriptGroup = app.activeGroups.scripts;
+        const scripts = allScripts.filter(s => s.group === activeScriptGroup);
+        
         app.elements.scriptsList.innerHTML = scripts.length > 0
             ? scripts.map(s => `
                 <div class="w-full p-2 bg-purple-100 hover:bg-purple-200 rounded-lg transition text-sm flex justify-between items-center">
@@ -322,17 +496,17 @@ const app = {
                     <button data-delete-script="${s.id}" class="delete-script-btn text-red-500 hover:text-red-700 ml-2 text-xs px-2">X</button>
                 </div>
             `).join('')
-            : '<p class="text-gray-500">No scripts saved.</p>';
+            : '<p class="text-gray-500 text-xs">No scripts in this group.</p>';
 
-        // Separate pre and post scripts
-        const preScripts = scripts.filter(s => s.type === 'pre-request');
-        const postScripts = scripts.filter(s => s.type !== 'pre-request');
+        // Separate pre and post scripts - use ALL scripts for dropdowns (not filtered by group)
+        const preScripts = allScripts.filter(s => s.type === 'pre-request');
+        const postScripts = allScripts.filter(s => s.type !== 'pre-request');
         
         app.elements.preScriptSelect.innerHTML = '<option value="">-- No Pre-Script Selected --</option>' + 
-            preScripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.preScriptId ? 'selected' : ''}>${s.name}</option>`).join('');
+            preScripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.preScriptId ? 'selected' : ''}>${s.name} (${s.group})</option>`).join('');
         
         app.elements.postScriptSelect.innerHTML = '<option value="">-- No Post-Script Selected --</option>' + 
-            postScripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.postScriptId ? 'selected' : ''}>${s.name}</option>`).join('');
+            postScripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.postScriptId ? 'selected' : ''}>${s.name} (${s.group})</option>`).join('');
 
         // Update script editor fields based on currentScript
         if (app.codeMirrorEditors.postScript) {
@@ -484,9 +658,10 @@ const app = {
 
     deleteVariable(key) {
         app.confirmDialog.show(`Are you sure you want to delete variable '${key}'?`, () => {
-            let vars = getVariableStore();
-            delete vars[key];
-            saveVariableStore(vars);
+            const varStore = getVariableStore();
+            const activeGroup = app.activeGroups.variables;
+            delete varStore[activeGroup][key];
+            saveVariableStore(varStore);
             app.renderVariableStore();
         });
     },
@@ -544,13 +719,16 @@ const app = {
             body: app.elements.bodyTextarea.value,
             preScriptId: app.elements.preScriptSelect.value,
             postScriptId: app.elements.postScriptSelect.value,
+            group: app.activeGroups.requests  // Save to active group
         };
         
         const savedReq = saveRequest(requestToSave);
         app.currentRequest.id = savedReq.id; 
+        app.currentRequest.group = savedReq.group;
         app.elements.requestTitleInput.value = savedReq.title;
-        alert(`Request saved as: ${savedReq.title}`);
+        alert(`Request saved as: ${savedReq.title} (Group: ${savedReq.group})`);
         app.renderCollections();
+        app.renderGroupSelectors();
     },
     
     saveAsNewRequest() {
@@ -569,7 +747,8 @@ const app = {
             rawHeaders: [{ key: '', value: '' }],
             body: '',
             preScriptId: '',
-            postScriptId: ''
+            postScriptId: '',
+            group: app.activeGroups.requests  // Use active group
         };
         
         app.elements.requestTitleInput.value = 'New Request';
@@ -593,14 +772,16 @@ const app = {
             id: app.currentScript.id, 
             name: scriptName,
             code: scriptCode,
+            group: app.activeGroups.scripts  // Save to active group
         };
 
         const savedScript = saveScript(scriptToSave);
         app.currentScript = savedScript; // Update entire current script object
         app.currentRequest.postScriptId = savedScript.id;
         
-        alert(`Script saved as: ${savedScript.name}`);
+        alert(`Script saved as: ${savedScript.name} (Group: ${savedScript.group})`);
         app.renderCollections();
+        app.renderGroupSelectors();
     },
     
     // --- Send & Response Handlers ---
@@ -617,6 +798,9 @@ const app = {
         document.getElementById('script-output').textContent = '';
         app.switchMainTab('result'); 
         
+        // Set active group for scripts before execution
+        setActiveGroupForScripts(app.activeGroups.variables);
+        
         executeRequest(
             app.elements.urlInput.value,
             app.elements.methodSelect.value,
@@ -624,7 +808,8 @@ const app = {
             app.elements.bodyTextarea.value,
             preScriptId,
             postScriptId,
-            app.displayResponse // Pass the UI function to the request module
+            app.displayResponse, // Pass the UI function to the request module
+            app.activeGroups.variables // Pass active variable group for templating
         );
     },
 
@@ -732,6 +917,16 @@ const app = {
     // --- Initialization ---
 
     init() {
+        console.log('App initializing...');
+        
+        // Load active groups from storage
+        const savedActiveGroups = getActiveGroups();
+        app.activeGroups = savedActiveGroups;
+        console.log('Active groups loaded:', app.activeGroups);
+        
+        // Render group selectors first
+        app.renderGroupSelectors();
+        
         // Load and render initial state
         app.renderVariableStore();
         app.renderHeaders();
@@ -745,6 +940,11 @@ const app = {
         // Set initial tab states
         app.switchSidebarTab('variables');
         app.switchMainTab('request');
+        
+        console.log('Checking for group buttons...');
+        console.log('new-var-group-btn exists:', !!document.getElementById('new-var-group-btn'));
+        console.log('new-request-group-btn exists:', !!document.getElementById('new-request-group-btn'));
+        console.log('new-script-group-btn exists:', !!document.getElementById('new-script-group-btn'));
 
         // Initialize CodeMirror editors
         app.codeMirrorEditors.preScript = CodeMirror.fromTextArea(
@@ -791,7 +991,16 @@ const app = {
             const key = document.getElementById('var-key-input').value.trim();
             const value = document.getElementById('var-value-input').value.trim();
             if (key) {
-                setVariable(key, value);
+                const activeGroup = app.activeGroups.variables;
+                const varStore = getVariableStore();
+                
+                if (!varStore[activeGroup]) {
+                    varStore[activeGroup] = {};
+                }
+                
+                varStore[activeGroup][key] = value;
+                saveVariableStore(varStore);
+                
                 document.getElementById('var-key-input').value = '';
                 document.getElementById('var-value-input').value = '';
                 app.renderVariableStore(); // Re-render the variables list
@@ -837,15 +1046,17 @@ const app = {
                 id: app.currentPreScript.id,
                 name: scriptName,
                 code: scriptCode,
-                type: 'pre-request'
+                type: 'pre-request',
+                group: app.activeGroups.scripts  // Save to active group
             };
 
             const savedScript = saveScript(scriptToSave);
             app.currentPreScript = savedScript; // Update entire current pre-script object
             app.currentRequest.preScriptId = savedScript.id;
             
-            alert(`Pre-request script saved as: ${savedScript.name}`);
+            alert(`Pre-request script saved as: ${savedScript.name} (Group: ${savedScript.group})`);
             app.renderCollections();
+            app.renderGroupSelectors();
         };
 
         // Event delegation for dynamically rendered delete and load buttons
@@ -918,10 +1129,56 @@ const app = {
         document.getElementById('export-btn').onclick = () => exportAllData(getVariableStore(), getAllRequests(), getAllScripts());
         document.getElementById('import-btn').onclick = () => document.getElementById('import-file').click();
 
-        // Add a default variable if the store is empty
-        if (Object.keys(variableStore).length === 0) {
-            setVariable('baseUrl', 'https://jsonplaceholder.typicode.com');
-            setVariable('token', 'initial_token_123');
+        // Group selector change handlers
+        document.getElementById('variables-group-select').onchange = (e) => {
+            app.switchGroup('variables', e.target.value);
+        };
+        
+        document.getElementById('requests-group-select').onchange = (e) => {
+            app.switchGroup('requests', e.target.value);
+        };
+        
+        document.getElementById('scripts-group-select').onchange = (e) => {
+            app.switchGroup('scripts', e.target.value);
+        };
+        
+        // Create new group button handlers
+        const newVarGroupBtn = document.getElementById('new-var-group-btn');
+        const newRequestGroupBtn = document.getElementById('new-request-group-btn');
+        const newScriptGroupBtn = document.getElementById('new-script-group-btn');
+        
+        if (newVarGroupBtn) {
+            newVarGroupBtn.onclick = () => {
+                app.createNewGroup('variables');
+            };
+        } else {
+            console.error('new-var-group-btn not found');
+        }
+        
+        if (newRequestGroupBtn) {
+            newRequestGroupBtn.onclick = () => {
+                app.createNewGroup('requests');
+            };
+        } else {
+            console.error('new-request-group-btn not found');
+        }
+        
+        if (newScriptGroupBtn) {
+            newScriptGroupBtn.onclick = () => {
+                app.createNewGroup('scripts');
+            };
+        } else {
+            console.error('new-script-group-btn not found');
+        }
+
+        // Add default variables if the store is empty
+        const varStore = getVariableStore();
+        if (!varStore[DEFAULT_GROUP] || Object.keys(varStore[DEFAULT_GROUP]).length === 0) {
+            varStore[DEFAULT_GROUP] = {
+                baseUrl: 'https://jsonplaceholder.typicode.com',
+                token: 'initial_token_123'
+            };
+            saveVariableStore(varStore);
         }
     }
 };

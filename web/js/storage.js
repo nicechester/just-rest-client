@@ -9,7 +9,12 @@ const STORAGE_KEYS = {
   VARIABLES: 'restClient.variables',
   REQUESTS: 'restClient.requests',
   SCRIPTS: 'restClient.scripts',
+  ACTIVE_GROUPS: 'restClient.activeGroups',
+  GROUP_NAMES: 'restClient.groupNames', // Store all group names (including empty ones)
 };
+
+// Default group name
+const DEFAULT_GROUP = 'global';
 
 // --- Request and Script Collection Management Helper ---
 
@@ -63,15 +68,35 @@ function saveVariableStore(variableStore) {
 
 /**
  * Loads the variable store from localStorage.
- * @return {Object} The loaded variable store, or an empty object if none is found.
+ * Now returns an object with variables grouped by group name.
+ * @return {Object} The loaded variable store with structure { groupName: { varKey: varValue } }
  */
 function loadVariableStore() {
   try {
     const jsonString = localStorage.getItem(STORAGE_KEYS.VARIABLES);
-    return jsonString ? JSON.parse(jsonString) : {};
+    const data = jsonString ? JSON.parse(jsonString) : {};
+    
+    // Migrate old format (flat object) to new format (grouped)
+    if (data && !data[DEFAULT_GROUP] && Object.keys(data).length > 0) {
+      // Check if it's the old format (has variable keys directly)
+      const hasNonGroupKeys = Object.keys(data).some(key => typeof data[key] !== 'object' || Array.isArray(data[key]));
+      if (hasNonGroupKeys) {
+        // Old format: migrate to new format
+        const migratedData = { [DEFAULT_GROUP]: data };
+        saveVariableStore(migratedData);
+        return migratedData;
+      }
+    }
+    
+    // Ensure default group exists
+    if (!data[DEFAULT_GROUP]) {
+      data[DEFAULT_GROUP] = {};
+    }
+    
+    return data;
   } catch (error) {
     console.error('Error loading variables. Returning empty store.', error);
-    return {};
+    return { [DEFAULT_GROUP]: {} };
   }
 }
 
@@ -79,10 +104,15 @@ function loadVariableStore() {
 
 /**
  * Retrieves all saved request objects.
+ * Ensures each request has a group field (defaults to DEFAULT_GROUP).
  * @return {Array<Object>} The list of saved requests.
  */
 function getAllRequests() {
-  return loadCollection(STORAGE_KEYS.REQUESTS);
+  const requests = loadCollection(STORAGE_KEYS.REQUESTS);
+  return requests.map(r => ({
+    ...r,
+    group: r.group || DEFAULT_GROUP
+  }));
 }
 
 /**
@@ -111,10 +141,15 @@ function saveRequest(requestObject) {
 
 /**
  * Retrieves all saved script objects.
+ * Ensures each script has a group field (defaults to DEFAULT_GROUP).
  * @return {Array<Object>} The list of saved scripts.
  */
 function getAllScripts() {
-  return loadCollection(STORAGE_KEYS.SCRIPTS);
+  const scripts = loadCollection(STORAGE_KEYS.SCRIPTS);
+  return scripts.map(s => ({
+    ...s,
+    group: s.group || DEFAULT_GROUP
+  }));
 }
 
 /**
@@ -205,11 +240,145 @@ async function exportAllData(variableStore, requests, scripts) {
   }
 }
 
+// --- Group Management ---
+
+/**
+ * Gets all active groups for each collection type.
+ * @return {Object} { variables: 'groupName', requests: 'groupName', scripts: 'groupName' }
+ */
+function getActiveGroups() {
+  try {
+    const jsonString = localStorage.getItem(STORAGE_KEYS.ACTIVE_GROUPS);
+    const defaults = { variables: DEFAULT_GROUP, requests: DEFAULT_GROUP, scripts: DEFAULT_GROUP };
+    return jsonString ? { ...defaults, ...JSON.parse(jsonString) } : defaults;
+  } catch (error) {
+    console.error('Error loading active groups', error);
+    return { variables: DEFAULT_GROUP, requests: DEFAULT_GROUP, scripts: DEFAULT_GROUP };
+  }
+}
+
+/**
+ * Sets the active group for a specific collection type.
+ * @param {string} type - One of 'variables', 'requests', 'scripts'
+ * @param {string} groupName - The group name to set as active
+ */
+function setActiveGroup(type, groupName) {
+  try {
+    const activeGroups = getActiveGroups();
+    activeGroups[type] = groupName;
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_GROUPS, JSON.stringify(activeGroups));
+  } catch (error) {
+    console.error('Error saving active group', error);
+  }
+}
+
+/**
+ * Gets stored group names for a specific type.
+ * @param {string} type - One of 'variables', 'requests', 'scripts'
+ * @return {Object} Object with structure { variables: [], requests: [], scripts: [] }
+ */
+function loadGroupNames() {
+  try {
+    const jsonString = localStorage.getItem(STORAGE_KEYS.GROUP_NAMES);
+    const data = jsonString ? JSON.parse(jsonString) : {};
+    
+    // Ensure all types exist with at least default group
+    if (!data.variables) data.variables = [DEFAULT_GROUP];
+    if (!data.requests) data.requests = [DEFAULT_GROUP];
+    if (!data.scripts) data.scripts = [DEFAULT_GROUP];
+    
+    return data;
+  } catch (error) {
+    console.error('Error loading group names', error);
+    return {
+      variables: [DEFAULT_GROUP],
+      requests: [DEFAULT_GROUP],
+      scripts: [DEFAULT_GROUP]
+    };
+  }
+}
+
+/**
+ * Saves group names for a specific type.
+ * @param {Object} groupNames - Object with structure { variables: [], requests: [], scripts: [] }
+ */
+function saveGroupNames(groupNames) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.GROUP_NAMES, JSON.stringify(groupNames));
+  } catch (error) {
+    console.error('Error saving group names', error);
+  }
+}
+
+/**
+ * Adds a group name to the stored list.
+ * @param {string} type - One of 'variables', 'requests', 'scripts'
+ * @param {string} groupName - The group name to add
+ */
+function addGroupName(type, groupName) {
+  const groupNames = loadGroupNames();
+  if (!groupNames[type].includes(groupName)) {
+    groupNames[type].push(groupName);
+    groupNames[type].sort();
+    saveGroupNames(groupNames);
+  }
+}
+
+/**
+ * Gets all unique group names for a collection type.
+ * @param {string} type - One of 'variables', 'requests', 'scripts'
+ * @return {Array<string>} Array of unique group names
+ */
+function getAllGroups(type) {
+  const groups = new Set([DEFAULT_GROUP]);
+  
+  // Load persisted group names (includes empty groups)
+  const groupNames = loadGroupNames();
+  if (groupNames[type]) {
+    groupNames[type].forEach(g => groups.add(g));
+  }
+  
+  // Also scan existing items (in case groups were created before this feature)
+  if (type === 'variables') {
+    const varStore = loadVariableStore();
+    Object.keys(varStore).forEach(g => {
+      groups.add(g);
+      // Add to persisted list if not there
+      if (!groupNames[type].includes(g)) {
+        addGroupName(type, g);
+      }
+    });
+  } else if (type === 'requests') {
+    const requests = loadCollection(STORAGE_KEYS.REQUESTS);
+    requests.forEach(r => {
+      if (r.group) {
+        groups.add(r.group);
+        if (!groupNames[type].includes(r.group)) {
+          addGroupName(type, r.group);
+        }
+      }
+    });
+  } else if (type === 'scripts') {
+    const scripts = loadCollection(STORAGE_KEYS.SCRIPTS);
+    scripts.forEach(s => {
+      if (s.group) {
+        groups.add(s.group);
+        if (!groupNames[type].includes(s.group)) {
+          addGroupName(type, s.group);
+        }
+      }
+    });
+  }
+  
+  return Array.from(groups).sort();
+}
+
 /**
  * Public interface for the storage module.
  */
 export {
   STORAGE_KEYS,
+  DEFAULT_GROUP,
   loadVariableStore,
   saveVariableStore,
   getAllRequests,
@@ -217,5 +386,9 @@ export {
   getAllScripts,
   saveScript,
   exportAllData,
-  saveCollection // Export the helper function for import logic in app.js
+  saveCollection, // Export the helper function for import logic in app.js
+  getActiveGroups,
+  setActiveGroup,
+  getAllGroups,
+  addGroupName
 };
