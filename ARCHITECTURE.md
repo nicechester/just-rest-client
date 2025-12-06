@@ -51,7 +51,12 @@ The app combines web technologies for the UI with native Rust for backend functi
 
 ### Storage
 - **Client-side**: localStorage (JSON serialization)
-- **Keys**: `restClient.variables`, `restClient.requests`, `restClient.scripts`
+- **Keys**: 
+  - `restClient.variables` - Grouped variables: `{ groupName: { key: value } }`
+  - `restClient.requests` - Saved requests with group field
+  - `restClient.scripts` - Pre/post-request scripts with group field
+  - `restClient.activeGroups` - Currently active group for each type
+  - `restClient.groupNames` - List of all group names (including empty groups)
 
 ---
 
@@ -160,10 +165,22 @@ web/
 │   └── main.css           # Custom styles (supplementing Tailwind)
 ├── js/                    # ES Modules
 │   ├── app.js             # Main controller & UI orchestration
-│   ├── variable.js        # Variable store management
+│   │                      # - Group management UI
+│   │                      # - Request/response display
+│   │                      # - Event handling
+│   ├── variable.js        # Variable store management (grouped)
+│   │                      # - Global + active group scoping
+│   │                      # - Flattened variable access
 │   ├── storage.js         # localStorage persistence layer
+│   │                      # - Group names persistence
+│   │                      # - Active group tracking
 │   ├── request.js         # HTTP request execution & templating
+│   │                      # - Tauri HTTP plugin integration
+│   │                      # - Variable templating
 │   └── scripting.js       # Pre/post-request script engine
+│                          # - Async script execution
+│                          # - HTTP client for scripts
+│                          # - getVar/setVar/log/http helpers
 └── icons/                 # App icons
 
 Key Design Patterns:
@@ -171,6 +188,7 @@ Key Design Patterns:
 - Separation of concerns (storage, logic, UI)
 - Functional programming style
 - No frameworks - vanilla JavaScript
+- Group-based organization for variables/requests/scripts
 ```
 
 ### Module Dependencies
@@ -264,9 +282,14 @@ app.handleSend()
     1. Execute Pre-Request Script (if any)
        executePreScript(preScriptId)
          ├─→ Load script code from storage
-         ├─→ Create sandbox: new Function('setVar', 'log', scriptCode)
-         ├─→ Execute script
-         └─→ setVar() calls update variableStore
+         ├─→ Create sandbox: new Function('getVar', 'setVar', 'log', 'http', scriptCode)
+         ├─→ Provide helpers:
+         │   - getVar(key) - read variables
+         │   - setVar(key, value) - write variables
+         │   - log(...args) - output logging
+         │   - http(url, options) - make HTTP requests
+         ├─→ Execute script (async/await supported)
+         └─→ setVar() updates variableStore in active group
     
     2. Apply Variable Templating
        applyTemplate(url, headers, body)
@@ -295,9 +318,16 @@ app.handleSend()
     5. Execute Post-Request Script (if any)
        executePostScript(postScriptId, response, responseData)
          ├─→ Load script code
-         ├─→ Create sandbox: new Function('response', 'responseData', 'setVar', 'log', code)
-         ├─→ Execute script (can parse response & set variables)
-         └─→ Collect logs
+         ├─→ Create sandbox: new Function('response', 'responseData', 'getVar', 'setVar', 'log', 'http', code)
+         ├─→ Provide helpers:
+         │   - response - HTTP Response object
+         │   - responseData - parsed body (JSON/text)
+         │   - getVar(key) - read variables
+         │   - setVar(key, value) - write variables
+         │   - log(...args) - output logging
+         │   - http(url, options) - make additional requests
+         ├─→ Execute script (async/await supported)
+         └─→ Collect logs and variable updates
     
     6. Return Results
        ↓
@@ -315,45 +345,75 @@ Input: "{{baseUrl}}/users/{{userId}}"
        ↓
 applyTemplate() in request.js
        ↓
+Get flattened variables (global + active group)
+  getFlattenedVariables(activeGroup)
+    ├─→ Load global group variables
+    ├─→ Load active group variables
+    └─→ Merge (active group overrides global)
+       ↓
 Regex: /\{\{(\w+)\}\}/g
        ↓
 For each match:
     ├─→ Extract variable name (e.g., "baseUrl", "userId")
-    ├─→ Look up in variableStore
+    ├─→ Look up in flattened variableStore
     └─→ Replace {{name}} with value
        ↓
 Output: "https://api.example.com/users/123"
+
+Variable Precedence:
+  Active Group > Global Group > undefined
 ```
 
 ### 4. Storage Persistence Flow
 
 ```
-Variables:
+Variables (Grouped):
   setVariable(key, value)  [variable.js]
     ↓
-  variableStore[key] = value
+  variableStore[activeGroup][key] = value
     ↓
   saveVariableStore(variableStore)  [storage.js]
     ↓
   localStorage.setItem('restClient.variables', JSON.stringify(variableStore))
+  
+  Format: { "global": { "baseUrl": "..." }, "production": { "apiKey": "..." } }
 
-Requests:
+Requests (with Groups):
   saveRequest(requestObject)  [storage.js]
     ↓
   Load existing: getAllRequests()
+    ↓
+  Ensure group field exists (defaults to 'global')
     ↓
   Find by ID or add new
     ↓
   saveCollection(STORAGE_KEYS.REQUESTS, requests)
     ↓
   localStorage.setItem('restClient.requests', JSON.stringify(requests))
+  
+  Add group to persistent list:
+    addGroupName('requests', requestObject.group)
 
-Scripts:
+Scripts (with Groups):
   saveScript(scriptObject)  [storage.js]
     ↓
   (Same pattern as requests)
     ↓
+  Ensure group field and type field ('pre-request' or post)
+    ↓
   localStorage.setItem('restClient.scripts', JSON.stringify(scripts))
+  
+  Add group to persistent list:
+    addGroupName('scripts', scriptObject.group)
+
+Active Groups:
+  setActiveGroup(type, groupName)  [storage.js]
+    ↓
+  activeGroups[type] = groupName
+    ↓
+  localStorage.setItem('restClient.activeGroups', JSON.stringify(activeGroups))
+  
+  Format: { "variables": "production", "requests": "staging", "scripts": "global" }
 ```
 
 ---
@@ -523,11 +583,20 @@ Tauri uses a capability-based permission system:
 ### localStorage Schema
 
 ```javascript
-// Key: 'restClient.variables'
+// Key: 'restClient.variables' (grouped structure)
 {
-  "baseUrl": "https://api.example.com",
-  "token": "abc123...",
-  "userId": "42"
+  "global": {
+    "baseUrl": "https://api.example.com",
+    "commonHeader": "application/json"
+  },
+  "production": {
+    "apiKey": "prod_key_123",
+    "token": "prod_token"
+  },
+  "dev": {
+    "apiKey": "dev_key_456",
+    "baseUrl": "http://localhost:8080"  // Overrides global
+  }
 }
 
 // Key: 'restClient.requests'
@@ -542,7 +611,8 @@ Tauri uses a capability-based permission system:
     ],
     "body": "",
     "preScriptId": "script-111",
-    "postScriptId": "script-222"
+    "postScriptId": "script-222",
+    "group": "production"  // Group assignment
   },
   // ... more requests
 ]
@@ -551,16 +621,33 @@ Tauri uses a capability-based permission system:
 [
   {
     "id": "script-111",
-    "name": "Set Auth Token",
-    "code": "setVar('token', 'new_token_value');"
+    "name": "Get OAuth Token",
+    "type": "pre-request",  // 'pre-request' or undefined (post-request)
+    "code": "const response = await http('https://auth.api.com/token', {...}); setVar('token', response.data.access_token);",
+    "group": "production"
   },
   {
     "id": "script-222",
     "name": "Parse User Data",
-    "code": "if (responseData.user) { setVar('userName', responseData.user.name); }"
+    "code": "if (responseData.user) { setVar('userName', responseData.user.name); }",
+    "group": "global"
   },
   // ... more scripts
 ]
+
+// Key: 'restClient.activeGroups'
+{
+  "variables": "production",
+  "requests": "staging",
+  "scripts": "global"
+}
+
+// Key: 'restClient.groupNames'
+{
+  "variables": ["global", "dev", "staging", "production"],
+  "requests": ["global", "api-v1", "api-v2"],
+  "scripts": ["global", "auth", "parsing"]
+}
 ```
 
 ### Storage Operations
@@ -614,36 +701,50 @@ This allows:
 
 ### Script Execution Sandbox
 
-Pre/post-request scripts run in a sandboxed environment:
+Pre/post-request scripts run in a sandboxed environment with async support:
 
 ```javascript
 // Sandboxing implementation (scripting.js)
 const sandbox = new Function(
-  'response',
-  'responseData',
-  'setVar',
-  'log',
-  scriptCode
+  'response',      // (post-script only) Response object
+  'responseData',  // (post-script only) Parsed body
+  'getVar',        // Read variables from store
+  'setVar',        // Write variables to store
+  'log',           // Output to script panel
+  'http',          // Make HTTP requests
+  `return (async () => { ${scriptCode} })();`  // Async wrapper
 );
 
 // Scripts have access to:
-// - response (Response object - read-only)
-// - responseData (parsed JSON/text)
-// - setVar(key, value) - controlled variable setter
-// - log(...args) - logging function
+// ✅ response (Response object - read-only, post-scripts only)
+// ✅ responseData (parsed JSON/text, post-scripts only)
+// ✅ getVar(key) - read variables (with group scoping)
+// ✅ setVar(key, value) - write variables (to active group)
+// ✅ log(...args) - logging function
+// ✅ http(url, options) - HTTP client (uses Tauri plugin if available)
+// ✅ async/await - full Promise support
+// ✅ Standard JavaScript (loops, conditionals, functions)
 
 // Scripts DO NOT have access to:
 // ❌ window object
 // ❌ document object
 // ❌ localStorage directly
-// ❌ fetch() or other network APIs
-// ❌ Tauri APIs
+// ❌ eval() or Function() constructor
+// ❌ Direct Tauri APIs (only through http())
 ```
 
 **Why this matters:**
 - Prevents malicious scripts from accessing sensitive data
-- Limits side effects to setting variables only
-- Scripts can't make unauthorized network requests
+- HTTP requests go through controlled `http()` function
+- Variables are read/written through controlled getVar/setVar
+- Scripts can make network requests but with logging
+- Async/await enables complex workflows (token refresh, chaining)
+
+**Security Features:**
+- Process isolation between WebView and Rust
+- Script output is logged and visible
+- HTTP calls are logged in script output
+- Tauri HTTP permissions still apply (ACL controls allowed URLs)
 
 ### Tauri Security
 

@@ -112,8 +112,12 @@ just-rest-client/
 ### Key Technologies
 
 - **Vite**: Modern bundler for ES modules
-- **Tauri**: Rust-based desktop framework
-- **tauri-plugin-http**: Native HTTP client (bypasses CORS)
+- **Tauri v2**: Rust-based desktop framework
+- **Plugins**:
+  - `tauri-plugin-http` - Native HTTP client (bypasses CORS)
+  - `tauri-plugin-dialog` - Native file dialogs for export/import
+  - `tauri-plugin-fs` - File system access for data export
+  - `tauri-plugin-shell` - Shell command execution
 
 ## Features
 
@@ -124,6 +128,29 @@ The Tauri HTTP plugin routes all `fetch()` calls through Rust's native HTTP clie
 - ✅ Better SSL/TLS certificate handling
 - ✅ Supports all HTTP methods and headers
 - ✅ Handles binary data efficiently
+- ✅ Available in both main requests AND scripts
+
+### Advanced Scripting
+
+Scripts can make HTTP requests using the same CORS-free client:
+```javascript
+// Pre-request script: Fetch OAuth token
+const response = await http('https://auth.api.com/token', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ client_id: getVar('client_id') })
+});
+setVar('access_token', response.data.access_token);
+```
+
+See [SCRIPTING.md](SCRIPTING.md) for full documentation.
+
+### Grouping & Organization
+
+- **Variable Groups**: Organize variables by environment (dev, staging, production)
+- **Request Collections**: Group API calls by feature or module
+- **Script Libraries**: Organize reusable pre/post-request scripts
+- **Global Scope**: Variables in 'global' group accessible everywhere
 
 ### Security
 
@@ -206,11 +233,58 @@ xcrun notarytool submit src-tauri/target/release/bundle/dmg/*.dmg \
 
 See [Apple's documentation](https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution) for details.
 
+## Script HTTP Client
+
+### Using HTTP in Scripts
+
+Scripts have full access to the Tauri HTTP client via the `http()` function:
+
+**Pre-Request Script:**
+```javascript
+// Fetch token before main request
+const tokenResponse = await http('https://auth.example.com/oauth/token', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/x-www-form-urlencoded'
+  },
+  body: 'grant_type=client_credentials&client_id=xxx&client_secret=yyy'
+});
+
+if (tokenResponse.status === 200) {
+  setVar('access_token', tokenResponse.data.access_token);
+  log('Token obtained successfully');
+}
+```
+
+**Post-Request Script:**
+```javascript
+// Chain requests based on response
+const userId = responseData.id;
+const detailsResponse = await http(`https://api.example.com/users/${userId}/details`, {
+  headers: {
+    'Authorization': `Bearer ${getVar('access_token')}`
+  }
+});
+
+setVar('user_name', detailsResponse.data.name);
+```
+
+**Benefits:**
+- ✅ No CORS - works like curl
+- ✅ Automatic logging to script output
+- ✅ JSON/text parsing based on Content-Type
+- ✅ Full async/await support
+- ✅ Error handling with try/catch
+
+See [SCRIPTING.md](SCRIPTING.md) for complete documentation and examples.
+
 ## Additional Resources
 
-- [Tauri Documentation](https://v2.tauri.app/)
+- [Tauri v2 Documentation](https://v2.tauri.app/)
 - [Vite Documentation](https://vitejs.dev/)
 - [Tauri HTTP Plugin](https://v2.tauri.app/plugin/http-client/)
+- [Scripting Guide](SCRIPTING.md)
+- [Architecture Documentation](ARCHITECTURE.md)
 
 ## Support
 

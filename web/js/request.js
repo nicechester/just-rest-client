@@ -66,7 +66,7 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptId, 
   // 0. Run pre-request script first
   let scriptOutput = '';
   if (preScriptId) {
-    scriptOutput = executePreScript(preScriptId);
+    scriptOutput = await executePreScript(preScriptId);
   }
 
   // 1. Apply templating (after pre-script has run and potentially updated variables)
@@ -114,7 +114,7 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptId, 
     }
     
     // 4. Run post-request script
-    const postScriptOutput = executePostScript(postScriptId, response, responseData);
+    const postScriptOutput = await executePostScript(postScriptId, response, responseData);
     scriptOutput += postScriptOutput;
 
   } catch (error) {
@@ -147,5 +147,7 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptId, 
  * Public interface for the request module.
  */
 export {
-  executeRequest
+  executeRequest,
+  tauriFetch,
+  isTauri
 };
