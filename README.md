@@ -46,18 +46,42 @@ npm run tauri:build
 - ✅ Native performance
 - ✅ Offline capable
 
-See [TAURI.md](TAURI.md) for detailed setup instructions and [ARCHITECTURE.md](ARCHITECTURE.md) for technical architecture documentation.
+**Documentation:**
+- 📖 [SCRIPTING.md](SCRIPTING.md) - Complete scripting guide with examples
+- 🏗️ [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture and design
+- 🖥️ [TAURI.md](TAURI.md) - Desktop app setup and Tauri features
 
 ## ✨ Features
 
-- **Environment Variables**: Manage variables with an intuitive UI, use `{{variableName}}` syntax in URLs, headers, and request bodies.
-- **Request Configuration**: Select HTTP methods (GET, POST, PUT, DELETE, PATCH, HEAD) with custom headers and body.
-- **Pre-Request Scripts**: Execute JavaScript before sending requests to dynamically set variables.
-- **Post-Request Scripts**: Run custom JavaScript after requests to parse responses and extract data.
-- **Result Viewer**: Comprehensive view showing both the final processed request and response details with JSON visualization.
-- **JSON Viewer**: Interactive, syntax-highlighted JSON visualization for request and response payloads.
-- **Save & Organize**: Save requests and scripts for reuse, export/import for backup and sharing.
-- **Responsive UI**: Built with Tailwind CSS for optimal viewing on desktop and mobile.
+### Core Features
+- **Environment Variables**: Manage variables with intuitive UI, use `{{variableName}}` syntax in URLs, headers, and bodies
+- **Variable Groups**: Organize variables by environment (dev, staging, production) with global scope inheritance
+- **Request Configuration**: HTTP methods (GET, POST, PUT, DELETE, PATCH, HEAD) with custom headers and body
+- **Result Viewer**: Comprehensive view showing processed request and response with JSON syntax highlighting
+
+### Advanced Scripting
+- **Pre-Request Scripts**: Execute JavaScript *before* requests to set variables, fetch tokens, or compute values
+- **Post-Request Scripts**: Run JavaScript *after* requests to parse responses and extract data
+- **HTTP Client in Scripts**: Make additional HTTP requests from scripts (no CORS in desktop app!)
+- **Available Functions**:
+  - `getVar(key)` - Read variables
+  - `setVar(key, value)` - Write variables
+  - `http(url, options)` - Make HTTP requests
+  - `log(...args)` - Output logging
+  - Full `async/await` support
+
+### Organization
+- **Request Collections**: Group API calls by feature, module, or environment
+- **Script Libraries**: Organize reusable pre/post-request scripts
+- **Export/Import**: Backup and share collections with team members
+- **JSON Viewer**: Interactive, syntax-highlighted visualization
+
+### Developer Experience
+- **CodeMirror Editor**: Syntax-highlighted JavaScript editor for scripts
+- **cURL Generator**: Export requests as cURL commands
+- **Inline Variable Editing**: Click variables to edit inline
+- **Custom Modals**: Native-like dialogs for better UX
+- **Responsive UI**: Built with Tailwind CSS
 
 ## 🚀 Getting Started
 
@@ -78,27 +102,57 @@ To use the client, follow these steps:
 
 ### 3. Pre-Request Scripts
 
-- **Dynamic Variables**: Use pre-request scripts to set or update variables before the request is sent.
-- **Example**: Generate timestamps, create authentication signatures, or compute dynamic values.
-- **Script Function**: Use `setVar('key', 'value')` to set variables in your script.
+- **Dynamic Variables**: Execute JavaScript before the request to prepare data
+- **Use Cases**: 
+  - Generate timestamps or dynamic values
+  - Fetch OAuth tokens from auth servers
+  - Compute signatures or hashes
+  - Build complex request payloads
+- **Available Functions**: `getVar()`, `setVar()`, `log()`, `http()`
 
 ```javascript
-// Example: Set a timestamp
-setVar('timestamp', new Date().getTime());
+// Example: Fetch OAuth token before request
+const response = await http('https://auth.api.com/token', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    client_id: getVar('client_id'),
+    client_secret: getVar('client_secret')
+  })
+});
+
+if (response.status === 200) {
+  setVar('access_token', response.data.access_token);
+  log('Token obtained:', response.data.access_token);
+}
 ```
 
 ### 4. Post-Request Scripts
 
-- **Extract Data**: Parse response data and save values as variables for subsequent requests.
-- **Chain Requests**: Extract tokens, IDs, or other data from responses to use in later requests.
-- **Script Functions**: Access `response` (HTTP response object), `responseData` (parsed body), and `setVar()` function.
+- **Extract Data**: Parse response and save values as variables
+- **Chain Requests**: Extract IDs/tokens and make follow-up requests
+- **Validation**: Check response structure and validate data
+- **Available Context**: `response`, `responseData`, `getVar()`, `setVar()`, `log()`, `http()`
 
 ```javascript
-// Example: Extract and save auth token
-if (responseData.token) {
-    setVar('authToken', responseData.token);
+// Example: Extract data and chain request
+if (response.status === 200) {
+  const userId = responseData.id;
+  setVar('user_id', userId);
+  
+  // Make follow-up request
+  const detailsResponse = await http(`https://api.example.com/users/${userId}/details`, {
+    headers: {
+      'Authorization': `Bearer ${getVar('access_token')}`
+    }
+  });
+  
+  setVar('user_name', detailsResponse.data.name);
+  log('User loaded:', detailsResponse.data.name);
 }
 ```
+
+**See [SCRIPTING.md](SCRIPTING.md) for complete documentation with more examples.**
 
 ### 5. Send and View Results
 
@@ -139,9 +193,21 @@ The JavaScript logic is divided into the following modules:
 
 Future planned features include:
 
-- Request history with search and filtering.
-- Collections/folders for better request organization.
-- Support for form data and multipart uploads.
-- Authentication helpers (OAuth, API Key, Bearer Token templates).
-- Request chaining workflows.
-- Dark mode toggle.
+- ✅ ~~Variable groups~~ (Implemented)
+- ✅ ~~Request collections~~ (Implemented via groups)
+- ✅ ~~HTTP client in scripts~~ (Implemented)
+- ✅ ~~Request chaining~~ (Implemented via scripts)
+- Request history with search and filtering
+- Support for form data and multipart uploads
+- GraphQL support
+- WebSocket testing
+- Environment variable sync across devices
+- Dark mode toggle
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
