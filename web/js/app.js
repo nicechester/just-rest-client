@@ -177,6 +177,21 @@ const app = {
         }
     },
     
+    // About dialog (also serves as splash screen)
+    showAbout() {
+        const dialog = document.getElementById('about-dialog');
+        if (dialog) {
+            dialog.classList.remove('hidden');
+        }
+    },
+    
+    hideAbout() {
+        const dialog = document.getElementById('about-dialog');
+        if (dialog) {
+            dialog.classList.add('hidden');
+        }
+    },
+    
     // Generate cURL command
     generateCurlCommand() {
         const url = app.elements.urlInput.value || '';
@@ -1128,6 +1143,10 @@ const app = {
         // Export/Import listeners
         document.getElementById('export-btn').onclick = () => exportAllData(getVariableStore(), getAllRequests(), getAllScripts());
         document.getElementById('import-btn').onclick = () => document.getElementById('import-file').click();
+        
+        // About dialog listeners - icon click to show About
+        document.getElementById('app-icon').onclick = () => app.showAbout();
+        document.getElementById('about-close').onclick = () => app.hideAbout();
 
         // Group selector change handlers
         document.getElementById('variables-group-select').onchange = (e) => {
@@ -1179,6 +1198,15 @@ const app = {
                 token: 'initial_token_123'
             };
             saveVariableStore(varStore);
+        }
+        
+        // Show About dialog as splash screen on first load
+        const hasSeenAbout = localStorage.getItem('hasSeenAbout');
+        if (!hasSeenAbout) {
+            setTimeout(() => {
+                app.showAbout();
+            }, 300); // Small delay for smooth appearance
+            localStorage.setItem('hasSeenAbout', 'true');
         }
     }
 };
