@@ -68,45 +68,45 @@ The app combines web technologies for the UI with native Rust for backend functi
 ┌─────────────────────────────────────────────────────────────┐
 │  HOST MACHINE                                               │
 │                                                             │
-│  ┌─────────────────────────────────────────────┐           │
-│  │  Vite Dev Server (Node.js Process)          │           │
-│  │  - Port: 9001                                │           │
-│  │  - Bundles ES modules on-the-fly            │           │
-│  │  - Hot Module Replacement (HMR)             │           │
-│  │  - Resolves node_modules imports            │           │
-│  │  - Source maps for debugging                │           │
-│  └──────────────┬──────────────────────────────┘           │
+│  ┌─────────────────────────────────────────────┐            │
+│  │  Vite Dev Server (Node.js Process)          │            │
+│  │  - Port: 9001                               │            │
+│  │  - Bundles ES modules on-the-fly            │            │
+│  │  - Hot Module Replacement (HMR)             │            │
+│  │  - Resolves node_modules imports            │            │
+│  │  - Source maps for debugging                │            │
+│  └──────────────┬──────────────────────────────┘            │
 │                 │ HTTP                                      │
 │                 │ http://localhost:9001                     │
 │                 ↓                                           │
-│  ┌─────────────────────────────────────────────┐           │
-│  │  Tauri Desktop Application                  │           │
-│  │                                              │           │
-│  │  ┌────────────────────────────────────────┐ │           │
-│  │  │  WebView (System Browser Engine)       │ │           │
-│  │  │                                         │ │           │
-│  │  │  Loads: http://localhost:9001          │ │           │
-│  │  │  - index.html                           │ │           │
-│  │  │  - js/app.js (ESM entry point)         │ │           │
-│  │  │  - js/*.js (modules)                   │ │           │
-│  │  │  - @tauri-apps/plugin-http (from npm)  │ │           │
-│  │  │                                         │ │           │
-│  │  │  JavaScript Context:                    │ │           │
-│  │  │  - window.app (app state/methods)      │ │           │
-│  │  │  - window.__TAURI__ (Tauri bridge)     │ │           │
-│  │  │  - localStorage (persistence)          │ │           │
-│  │  └────────────────────────────────────────┘ │           │
-│  │                 ↕ IPC (Inter-Process Comm) │           │
-│  │  ┌────────────────────────────────────────┐ │           │
-│  │  │  Rust Backend (Native)                 │ │           │
-│  │  │                                         │ │           │
-│  │  │  - tauri_plugin_http::fetch()          │ │           │
-│  │  │    (uses reqwest - native HTTP client) │ │           │
-│  │  │  - No CORS restrictions!               │ │           │
-│  │  │  - File system access                  │ │           │
-│  │  │  - OS integration                       │ │           │
-│  │  └────────────────────────────────────────┘ │           │
-│  └─────────────────────────────────────────────┘           │
+│  ┌─────────────────────────────────────────────┐            │
+│  │  Tauri Desktop Application                  │            │
+│  │                                             │            │
+│  │  ┌────────────────────────────────────────┐ │            │
+│  │  │  WebView (System Browser Engine)       │ │            │
+│  │  │                                        │ │            │
+│  │  │  Loads: http://localhost:9001          │ │            │
+│  │  │  - index.html                          │ │            │
+│  │  │  - js/app.js (ESM entry point)         │ │            │
+│  │  │  - js/*.js (modules)                   │ │            │
+│  │  │  - @tauri-apps/plugin-http (from npm)  │ │            │
+│  │  │                                        │ │            │
+│  │  │  JavaScript Context:                   │ │            │
+│  │  │  - window.app (app state/methods)      │ │            │
+│  │  │  - window.__TAURI__ (Tauri bridge)     │ │            │
+│  │  │  - localStorage (persistence)          │ │            │
+│  │  └────────────────────────────────────────┘ │            │
+│  │                 ↕ IPC (Inter-Process Comm)  │            │
+│  │  ┌────────────────────────────────────────┐ │            │
+│  │  │  Rust Backend (Native)                 │ │            │
+│  │  │                                        │ │            │
+│  │  │  - tauri_plugin_http::fetch()          │ │            │
+│  │  │    (uses reqwest - native HTTP client) │ │            │
+│  │  │  - No CORS restrictions!               │ │            │
+│  │  │  - File system access                  │ │            │
+│  │  │  - OS integration                      │ │            │
+│  │  └────────────────────────────────────────┘ │            │
+│  └─────────────────────────────────────────────┘            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -114,41 +114,41 @@ The app combines web technologies for the UI with native Rust for backend functi
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Just REST Client.app (Single Binary)                      │
+│  Just REST Client.app (Single Binary)                       │
 │                                                             │
-│  ┌─────────────────────────────────────────────┐           │
-│  │  WebView (System Browser Engine)            │           │
-│  │                                              │           │
-│  │  Loads: file:///path/to/bundled/files       │           │
-│  │                                              │           │
-│  │  ┌────────────────────────────────────────┐ │           │
-│  │  │  Bundled Web Assets (in app bundle)    │ │           │
-│  │  │                                         │ │           │
-│  │  │  dist/                                  │ │           │
-│  │  │  ├── index.html                         │ │           │
-│  │  │  ├── assets/                            │ │           │
-│  │  │  │   ├── index-[hash].js (bundled!)    │ │           │
-│  │  │  │   │   - All JS modules combined     │ │           │
-│  │  │  │   │   - @tauri-apps/plugin-http     │ │           │
-│  │  │  │   │   - app.js + all modules        │ │           │
-│  │  │  │   └── index-[hash].css              │ │           │
-│  │  │  ├── icons/                             │ │           │
-│  │  │  └── css/                               │ │           │
-│  │  │                                         │ │           │
-│  │  │  NO Node.js - just static files!       │ │           │
-│  │  └────────────────────────────────────────┘ │           │
-│  │                 ↕ IPC                       │           │
-│  │  ┌────────────────────────────────────────┐ │           │
-│  │  │  Rust Backend (Compiled Binary)        │ │           │
-│  │  │                                         │ │           │
-│  │  │  - Tauri runtime                        │ │           │
-│  │  │  - HTTP plugin (reqwest)               │ │           │
-│  │  │  - Shell plugin                         │ │           │
-│  │  │  - All dependencies statically linked  │ │           │
-│  │  └────────────────────────────────────────┘ │           │
-│  └─────────────────────────────────────────────┘           │
+│  ┌─────────────────────────────────────────────┐            │
+│  │  WebView (System Browser Engine)            │            │
+│  │                                             │            │
+│  │  Loads: file:///path/to/bundled/files       │            │
+│  │                                             │            │
+│  │  ┌────────────────────────────────────────┐ │            │
+│  │  │  Bundled Web Assets (in app bundle)    │ │            │
+│  │  │                                        │ │            │
+│  │  │  dist/                                 │ │            │
+│  │  │  ├── index.html                        │ │            │
+│  │  │  ├── assets/                           │ │            │
+│  │  │  │   ├── index-[hash].js (bundled!)    │ │            │
+│  │  │  │   │   - All JS modules combined     │ │            │
+│  │  │  │   │   - @tauri-apps/plugin-http     │ │            │
+│  │  │  │   │   - app.js + all modules        │ │            │
+│  │  │  │   └── index-[hash].css              │ │            │
+│  │  │  ├── icons/                            │ │            │
+│  │  │  └── css/                              │ │            │
+│  │  │                                        │ │            │
+│  │  │  NO Node.js - just static files!       │ │            │
+│  │  └────────────────────────────────────────┘ │            │
+│  │                 ↕ IPC                       │            │
+│  │  ┌────────────────────────────────────────┐ │            │
+│  │  │  Rust Backend (Compiled Binary)        │ │            │
+│  │  │                                        │ │            │
+│  │  │  - Tauri runtime                       │ │            │
+│  │  │  - HTTP plugin (reqwest)               │ │            │
+│  │  │  - Shell plugin                        │ │            │
+│  │  │  - All dependencies statically linked  │ │            │
+│  │  └────────────────────────────────────────┘ │            │
+│  └─────────────────────────────────────────────┘            │
 │                                                             │
-│  App Size: ~5-10 MB (vs Electron ~100+ MB)                 │
+│  App Size: ~5-10 MB (vs Electron ~100+ MB)                  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
