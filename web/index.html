@@ -142,6 +142,7 @@
                             <option>HEAD</option>
                         </select>
                         <input type="text" id="url-input" placeholder="Enter URL (e.g., {{baseUrl}}/users)" class="flex-1 p-3 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
+                        <button id="import-curl-btn" class="bg-green-600 text-white font-bold p-3 rounded-lg hover:bg-green-700 transition duration-150 min-w-[100px]" title="Import from cURL">Import</button>
                         <button id="curl-btn" class="bg-gray-600 text-white font-bold p-3 rounded-lg hover:bg-gray-700 transition duration-150 min-w-[100px]" title="Show as cURL">cURL</button>
                         <button id="send-btn" class="bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-700 transition duration-150 min-w-[100px]">Send</button>
                     </div>
@@ -301,6 +302,19 @@
             <div class="flex justify-end space-x-2">
                 <button id="curl-copy" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">Copy to Clipboard</button>
                 <button id="curl-close" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import cURL Dialog -->
+    <div id="import-curl-dialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-3xl w-full mx-4 shadow-xl">
+            <h3 class="text-lg font-semibold mb-3">Import from cURL</h3>
+            <p class="text-sm text-gray-600 mb-3">Paste your cURL command below. We'll extract the URL, method, headers, and body.</p>
+            <textarea id="import-curl-input" class="w-full h-48 p-3 border rounded-lg text-sm font-mono focus:ring-blue-500 focus:border-blue-500 resize-vertical" placeholder="curl -X POST https://api.example.com/endpoint \&#10;  -H 'Content-Type: application/json' \&#10;  -d '{&quot;key&quot;: &quot;value&quot;}'"></textarea>
+            <div class="flex justify-end space-x-2 mt-4">
+                <button id="import-curl-cancel" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">Cancel</button>
+                <button id="import-curl-parse" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">Import</button>
             </div>
         </div>
     </div>

@@ -225,6 +225,157 @@ const app = {
         return curlCommand;
     },
     
+    /**
+     * Parse a cURL command and extract request details
+     * @param {string} curlCommand - The cURL command to parse
+     * @returns {object} Parsed request details {url, method, headers, body}
+     */
+    parseCurlCommand(curlCommand) {
+        const result = {
+            url: '',
+            method: 'GET',
+            headers: [],
+            body: ''
+        };
+        
+        if (!curlCommand || typeof curlCommand !== 'string') {
+            return result;
+        }
+        
+        // Remove 'curl' at the start and normalize whitespace
+        let cmd = curlCommand.trim();
+        if (cmd.startsWith('curl')) {
+            cmd = cmd.substring(4).trim();
+        }
+        
+        // Replace line continuations (backslash newline) with space
+        cmd = cmd.replace(/\\\s*\n\s*/g, ' ');
+        
+        // Extract method (-X or --request)
+        const methodMatch = cmd.match(/(?:-X|--request)\s+([A-Z]+)/);
+        if (methodMatch) {
+            result.method = methodMatch[1];
+        }
+        
+        // Extract headers (-H or --header)
+        // Use matchAll to get all matches without modifying the string
+        const headerRegex = /(?:-H|--header)\s+(['"])(.*?)\1/g;
+        const headerMatches = [...cmd.matchAll(headerRegex)];
+        headerMatches.forEach(match => {
+            const headerValue = match[2];
+            const colonIndex = headerValue.indexOf(':');
+            if (colonIndex > 0) {
+                const key = headerValue.substring(0, colonIndex).trim();
+                const value = headerValue.substring(colonIndex + 1).trim();
+                result.headers.push({ key, value });
+            }
+        });
+        
+        // Extract body data (-d, --data, --data-raw, --data-binary)
+        const dataRegex = /(?:-d|--data|--data-raw|--data-binary)\s+(['"])([\s\S]*?)\1/;
+        const dataMatch = cmd.match(dataRegex);
+        if (dataMatch) {
+            result.body = dataMatch[2];
+        }
+        
+        // Extract URL (remaining quoted or unquoted string)
+        // Try quoted URL first
+        const quotedUrlMatch = cmd.match(/(['"])(https?:\/\/[^\1]*?)\1/);
+        if (quotedUrlMatch) {
+            result.url = quotedUrlMatch[2];
+        } else {
+            // Try unquoted URL
+            const unquotedUrlMatch = cmd.match(/(https?:\/\/\S+)/);
+            if (unquotedUrlMatch) {
+                result.url = unquotedUrlMatch[1];
+            }
+        }
+        
+        return result;
+    },
+    
+    /**
+     * Show the import cURL dialog
+     */
+    showImportCurlDialog() {
+        const dialog = document.getElementById('import-curl-dialog');
+        const input = document.getElementById('import-curl-input');
+        const parseBtn = document.getElementById('import-curl-parse');
+        const cancelBtn = document.getElementById('import-curl-cancel');
+        
+        input.value = '';
+        dialog.classList.remove('hidden');
+        input.focus();
+        
+        // Remove old listeners
+        const newParseBtn = parseBtn.cloneNode(true);
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        parseBtn.parentNode.replaceChild(newParseBtn, parseBtn);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        
+        // Add new listeners
+        newParseBtn.onclick = () => {
+            const curlCommand = input.value.trim();
+            if (!curlCommand) {
+                alert('Please paste a cURL command');
+                return;
+            }
+            
+            try {
+                const parsed = app.parseCurlCommand(curlCommand);
+                app.populateRequestFromParsedCurl(parsed);
+                dialog.classList.add('hidden');
+            } catch (error) {
+                alert('Failed to parse cURL command: ' + error.message);
+            }
+        };
+        
+        newCancelBtn.onclick = () => {
+            dialog.classList.add('hidden');
+        };
+        
+        // Allow Escape key to close
+        dialog.onclick = (e) => {
+            if (e.target === dialog) {
+                dialog.classList.add('hidden');
+            }
+        };
+    },
+    
+    /**
+     * Populate the request form with parsed cURL data
+     * @param {object} parsed - Parsed cURL data
+     */
+    populateRequestFromParsedCurl(parsed) {
+        // Set URL
+        if (parsed.url) {
+            app.elements.urlInput.value = parsed.url;
+        }
+        
+        // Set method
+        if (parsed.method) {
+            app.elements.methodSelect.value = parsed.method;
+        }
+        
+        // Set headers
+        if (parsed.headers && parsed.headers.length > 0) {
+            app.currentRequest.rawHeaders = [...parsed.headers, { key: '', value: '' }];
+            app.renderHeaders();
+        }
+        
+        // Set body
+        if (parsed.body) {
+            app.elements.bodyTextarea.value = parsed.body;
+        }
+        
+        // Clear request ID and title (this is a new request)
+        app.currentRequest.id = null;
+        app.elements.requestTitleInput.value = 'Imported from cURL';
+        
+        // Switch to Request Builder tab if not already there
+        app.switchMainTab('request');
+    },
+    
     applyTemplateToString(str) {
         if (!str) return str;
         const vars = getFlattenedVariables(app.activeGroups.variables);
@@ -994,6 +1145,7 @@ const app = {
 
         // Attach event listeners
         document.getElementById('send-btn').onclick = app.handleSend;
+        document.getElementById('import-curl-btn').onclick = app.showImportCurlDialog;
         document.getElementById('curl-btn').onclick = app.showCurlDialog;
         document.getElementById('new-request-btn').onclick = app.newRequest;
         document.getElementById('save-request-btn').onclick = app.saveAsNewRequest;
