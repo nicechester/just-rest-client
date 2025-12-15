@@ -117,22 +117,31 @@ function getAllRequests() {
 
 /**
  * Saves or updates a single request object.
+ * If a request with the same title and group exists, updates it.
+ * Otherwise creates a new request.
  * @param {Object} requestObject - The request object to save.
  * @return {Object} The saved request object (with an ID).
  */
 function saveRequest(requestObject) {
   const requests = getAllRequests();
+  const group = requestObject.group || DEFAULT_GROUP;
+  const title = requestObject.title || 'Untitled Request';
   
-  if (!requestObject.id) {
-    requestObject.id = `req-${Date.now()}`;
-  }
+  // Check if a request with same title in same group exists
+  const existingIndex = requests.findIndex(r => 
+    r.title === title && (r.group || DEFAULT_GROUP) === group
+  );
 
-  const index = requests.findIndex(r => r.id === requestObject.id);
-
-  if (index !== -1) {
-    requests[index] = requestObject; // Update existing
+  if (existingIndex !== -1) {
+    // Update existing request, preserve its ID
+    requestObject.id = requests[existingIndex].id;
+    requests[existingIndex] = requestObject;
   } else {
-    requests.push(requestObject); // Add new
+    // Create new request
+    if (!requestObject.id) {
+      requestObject.id = `req-${Date.now()}`;
+    }
+    requests.push(requestObject);
   }
 
   saveCollection(STORAGE_KEYS.REQUESTS, requests);

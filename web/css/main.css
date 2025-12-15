@@ -92,3 +92,70 @@ pre[class*="language-"] code {
 .CodeMirror-scroll {
     min-height: 150px;
 }
+
+/* JSON Tree Viewer Styles */
+#json-tree-viewer {
+    color: #e0e0e0;
+    line-height: 1.6;
+}
+
+.json-tree-node {
+    margin-left: 20px;
+}
+
+.json-tree-key {
+    color: #80deea;
+    cursor: default;
+}
+
+.json-tree-string {
+    color: #a5d6a7;
+}
+
+.json-tree-number {
+    color: #90caf9;
+}
+
+.json-tree-boolean {
+    color: #ce93d8;
+}
+
+.json-tree-null {
+    color: #ffab91;
+}
+
+.json-tree-toggle {
+    cursor: pointer;
+    user-select: none;
+    display: inline-block;
+    width: 16px;
+    color: #ffd54f;
+    font-weight: bold;
+}
+
+.json-tree-toggle:hover {
+    color: #ffeb3b;
+}
+
+.json-tree-collapsed {
+    display: none;
+}
+
+.json-tree-line {
+    position: relative;
+    padding: 2px 0;
+}
+
+.json-tree-line.highlight {
+    background-color: rgba(255, 235, 59, 0.3);
+}
+
+.json-tree-line.current-match {
+    background-color: rgba(255, 152, 0, 0.5);
+    border-left: 3px solid #ff9800;
+    padding-left: 2px;
+}
+
+.json-tree-line:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
