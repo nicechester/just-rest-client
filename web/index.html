@@ -6,6 +6,8 @@
     <title>Just REST Client</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/main.css">
+    <!-- JSON Editor CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/vanilla-jsoneditor/themes/jse-theme-dark.css">
     <!-- Syntax Highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
@@ -163,7 +165,7 @@
                     <!-- Body -->
                     <div class="border-t pt-4">
                         <h3 class="font-medium text-gray-600 mb-2">Body (POST/PUT/PATCH)</h3>
-                        <textarea id="body-textarea" placeholder='{"key": "{{value}}"}' rows="5" class="w-full p-3 border rounded-lg text-sm code-input focus:ring-blue-500 focus:border-blue-500 font-mono"></textarea>
+                        <div id="request-body-editor" class="rounded border border-gray-300" style="height: 300px;"></div>
                     </div>
 
                     <!-- Pre-Request Script Selector/Editor -->
@@ -256,23 +258,9 @@
             <div>
                 <div class="flex items-center justify-between mb-2">
                     <p class="text-xs text-gray-500">Response Body</p>
-                    <div class="flex items-center space-x-2">
-                        <div class="flex items-center space-x-1">
-                            <input type="text" id="json-search" placeholder="Search JSON..." class="px-3 py-1 text-xs border rounded focus:ring-blue-500 focus:border-blue-500 w-48">
-                            <button id="json-search-prev" class="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition" title="Previous match">&lt;</button>
-                            <button id="json-search-next" class="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition" title="Next match">&gt;</button>
-                            <span id="json-search-counter" class="text-xs text-gray-500 min-w-[60px]"></span>
-                        </div>
-                        <button id="json-collapse-all" class="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition" title="Collapse All">[-]</button>
-                        <button id="json-expand-all" class="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded transition" title="Expand All">[+]</button>
-                        <button id="json-copy" class="px-3 py-1 text-xs bg-green-600 text-white hover:bg-green-700 rounded transition" title="Copy JSON to Clipboard">📋 Copy</button>
-                        <button id="json-raw-toggle" class="px-2 py-1 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded transition">Raw</button>
-                    </div>
                 </div>
-                <div class="bg-gray-800 p-4 rounded overflow-auto max-h-96">
-                    <div id="json-tree-viewer" class="hidden text-sm font-mono"></div>
-                    <pre id="response-body-viewer" class="language-json m-0"><code id="response-body-code" class="language-json"></code></pre>
-                </div>
+                <!-- JSON Editor Container -->
+                <div id="json-editor-container" class="rounded border border-gray-300" style="height: 400px;"></div>
             </div>
                         </div>
                     </div>

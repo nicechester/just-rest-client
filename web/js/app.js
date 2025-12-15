@@ -6,6 +6,9 @@
 
 // --- Module Imports ---
 
+// Import JSON Editor library
+import { createJSONEditor } from 'vanilla-jsoneditor';
+
 // Import all required functions and variables from specialized modules.
 import { 
     loadVariableStore, 
@@ -91,6 +94,40 @@ const app = {
     codeMirrorEditors: {
         preScript: null,
         postScript: null
+    },
+    
+    // JSON Editor instances
+    jsonEditor: null, // For response viewer (read-only)
+    requestBodyEditor: null, // For request body (editable)
+    
+    // Helper methods for request body
+    getRequestBody() {
+        if (app.requestBodyEditor) {
+            try {
+                const content = app.requestBodyEditor.get();
+                return content.text || '';
+            } catch (e) {
+                return '';
+            }
+        }
+        return '';
+    },
+    
+    setRequestBody(bodyContent) {
+        if (app.requestBodyEditor) {
+            try {
+                // Try to parse as JSON first
+                if (bodyContent && bodyContent.trim()) {
+                    const parsed = JSON.parse(bodyContent);
+                    app.requestBodyEditor.set({ json: parsed });
+                } else {
+                    app.requestBodyEditor.set({ text: bodyContent || '' });
+                }
+            } catch (e) {
+                // Not valid JSON, set as text
+                app.requestBodyEditor.set({ text: bodyContent || '' });
+            }
+        }
     },
     
     // Custom confirm dialog
@@ -197,7 +234,7 @@ const app = {
         const url = app.elements.urlInput.value || '';
         const method = app.elements.methodSelect.value;
         const headers = app.currentRequest.rawHeaders.filter(h => h.key);
-        const body = app.elements.bodyTextarea.value;
+        const body = app.getRequestBody();
         
         // Apply variable templating
         const processedUrl = app.applyTemplateToString(url);
@@ -365,7 +402,7 @@ const app = {
         
         // Set body
         if (parsed.body) {
-            app.elements.bodyTextarea.value = parsed.body;
+            app.setRequestBody(parsed.body);
         }
         
         // Clear request ID and title (this is a new request)
@@ -427,7 +464,6 @@ const app = {
         urlInput: document.getElementById('url-input'),
         methodSelect: document.getElementById('method-select'),
         headersContainer: document.getElementById('headers-container'),
-        bodyTextarea: document.getElementById('body-textarea'),
         requestTitleInput: document.getElementById('request-title-input'),
         
         // Scripting
@@ -756,7 +792,7 @@ const app = {
             app.currentPreScript.id = request.preScriptId;
             app.elements.urlInput.value = request.url;
             app.elements.methodSelect.value = request.method;
-            app.elements.bodyTextarea.value = request.body;
+            app.setRequestBody(request.body);
             app.elements.requestTitleInput.value = request.title;
             app.elements.postScriptSelect.value = request.postScriptId || '';
             app.elements.preScriptSelect.value = request.preScriptId || '';
@@ -889,7 +925,7 @@ const app = {
             url: app.elements.urlInput.value,
             method: app.elements.methodSelect.value,
             rawHeaders: app.currentRequest.rawHeaders.filter(h => h.key), 
-            body: app.elements.bodyTextarea.value,
+            body: app.getRequestBody(),
             preScriptId: app.elements.preScriptSelect.value,
             postScriptId: app.elements.postScriptSelect.value,
             group: group
@@ -934,7 +970,7 @@ const app = {
         app.elements.requestTitleInput.value = 'New Request';
         app.elements.urlInput.value = '';
         app.elements.methodSelect.value = 'GET';
-        app.elements.bodyTextarea.value = '';
+        app.setRequestBody('');
         app.elements.preScriptSelect.value = '';
         app.elements.postScriptSelect.value = '';
         
@@ -985,7 +1021,7 @@ const app = {
             app.elements.urlInput.value,
             app.elements.methodSelect.value,
             rawHeaders,
-            app.elements.bodyTextarea.value,
+            app.getRequestBody(),
             preScriptId,
             postScriptId,
             app.displayResponse, // Pass the UI function to the request module
@@ -993,312 +1029,8 @@ const app = {
         );
     },
 
-    // JSON Tree viewer state
-    jsonViewerState: {
-        mode: 'tree', // 'tree' or 'raw'
-        data: null,
-        searchTerm: '',
-        searchMatches: [],
-        currentMatchIndex: -1
-    },
-
-    /**
-     * Render JSON in tree view or raw view
-     */
-    renderJsonView() {
-        const treeViewer = document.getElementById('json-tree-viewer');
-        const rawViewer = document.getElementById('response-body-viewer');
-        const rawCode = document.getElementById('response-body-code');
-        
-        if (app.jsonViewerState.mode === 'tree') {
-            // Show tree view
-            treeViewer.innerHTML = '';
-            treeViewer.classList.remove('hidden');
-            rawViewer.classList.add('hidden');
-            
-            if (app.jsonViewerState.data) {
-                app.renderJsonTree(app.jsonViewerState.data, treeViewer, '', 0);
-                app.applyJsonSearch();
-            }
-        } else {
-            // Show raw view
-            treeViewer.classList.add('hidden');
-            rawViewer.classList.remove('hidden');
-            
-            if (typeof app.jsonViewerState.data === 'object' && app.jsonViewerState.data !== null) {
-                const formattedJson = JSON.stringify(app.jsonViewerState.data, null, 2);
-                rawCode.textContent = formattedJson;
-                rawCode.className = 'language-json';
-                Prism.highlightElement(rawCode);
-            }
-        }
-    },
-
-    /**
-     * Recursively render JSON as an expandable tree
-     */
-    renderJsonTree(data, container, key = '', level = 0) {
-        const isArray = Array.isArray(data);
-        const isObject = typeof data === 'object' && data !== null && !isArray;
-        
-        if (isObject || isArray) {
-            const line = document.createElement('div');
-            line.className = 'json-tree-line';
-            line.dataset.path = key;
-            
-            const toggle = document.createElement('span');
-            toggle.className = 'json-tree-toggle';
-            toggle.textContent = '▼';
-            toggle.dataset.expanded = 'true';
-            
-            const keySpan = document.createElement('span');
-            if (key) {
-                keySpan.className = 'json-tree-key';
-                // Show only the last segment of the path, not the full path
-                const displayKey = key.split('.').pop();
-                keySpan.textContent = `"${displayKey}": `;
-            }
-            
-            const bracket = document.createElement('span');
-            bracket.style.color = '#ffd54f';
-            bracket.textContent = isArray ? '[' : '{';
-            
-            line.appendChild(toggle);
-            line.appendChild(keySpan);
-            line.appendChild(bracket);
-            
-            const childContainer = document.createElement('div');
-            childContainer.className = 'json-tree-node';
-            
-            const entries = isArray ? data.map((v, i) => [i, v]) : Object.entries(data);
-            entries.forEach(([k, v], idx) => {
-                const childKey = key ? `${key}.${k}` : String(k);
-                app.renderJsonTree(v, childContainer, childKey, level + 1);
-            });
-            
-            const closeLine = document.createElement('div');
-            closeLine.className = 'json-tree-line';
-            closeLine.style.marginLeft = '20px';
-            const closeBracket = document.createElement('span');
-            closeBracket.style.color = '#ffd54f';
-            closeBracket.textContent = isArray ? ']' : '}';
-            closeLine.appendChild(closeBracket);
-            
-            container.appendChild(line);
-            container.appendChild(childContainer);
-            container.appendChild(closeLine);
-            
-            // Toggle expand/collapse
-            toggle.onclick = () => {
-                const expanded = toggle.dataset.expanded === 'true';
-                toggle.dataset.expanded = !expanded;
-                toggle.textContent = expanded ? '▶' : '▼';
-                childContainer.classList.toggle('json-tree-collapsed');
-                closeLine.classList.toggle('json-tree-collapsed');
-            };
-            
-        } else {
-            // Primitive value
-            const line = document.createElement('div');
-            line.className = 'json-tree-line';
-            line.dataset.path = key;
-            line.style.marginLeft = '20px';
-            
-            const keySpan = document.createElement('span');
-            keySpan.className = 'json-tree-key';
-            keySpan.textContent = `"${key.split('.').pop()}": `;
-            
-            const valueSpan = document.createElement('span');
-            if (typeof data === 'string') {
-                valueSpan.className = 'json-tree-string';
-                valueSpan.textContent = `"${data}"`;
-            } else if (typeof data === 'number') {
-                valueSpan.className = 'json-tree-number';
-                valueSpan.textContent = data;
-            } else if (typeof data === 'boolean') {
-                valueSpan.className = 'json-tree-boolean';
-                valueSpan.textContent = data;
-            } else if (data === null) {
-                valueSpan.className = 'json-tree-null';
-                valueSpan.textContent = 'null';
-            }
-            
-            line.appendChild(keySpan);
-            line.appendChild(valueSpan);
-            container.appendChild(line);
-        }
-    },
-
-    /**
-     * Apply search filter to JSON tree
-     */
-    applyJsonSearch() {
-        const searchTerm = app.jsonViewerState.searchTerm.toLowerCase();
-        const lines = document.querySelectorAll('#json-tree-viewer .json-tree-line');
-        
-        // Reset search state
-        app.jsonViewerState.searchMatches = [];
-        app.jsonViewerState.currentMatchIndex = -1;
-        
-        lines.forEach(line => {
-            line.classList.remove('highlight', 'current-match');
-            if (!searchTerm) return;
-            
-            const text = line.textContent.toLowerCase();
-            if (text.includes(searchTerm)) {
-                line.classList.add('highlight');
-                app.jsonViewerState.searchMatches.push(line);
-            }
-        });
-        
-        // Update counter and navigate to first match if any
-        app.updateSearchCounter();
-        if (app.jsonViewerState.searchMatches.length > 0) {
-            app.navigateToMatch(0);
-        }
-    },
-
-    /**
-     * Update search result counter display
-     */
-    updateSearchCounter() {
-        const counter = document.getElementById('json-search-counter');
-        const total = app.jsonViewerState.searchMatches.length;
-        const current = app.jsonViewerState.currentMatchIndex + 1;
-        
-        if (total > 0) {
-            counter.textContent = `${current} of ${total}`;
-        } else if (app.jsonViewerState.searchTerm) {
-            counter.textContent = 'No matches';
-        } else {
-            counter.textContent = '';
-        }
-    },
-
-    /**
-     * Navigate to a specific search match
-     */
-    navigateToMatch(index) {
-        const matches = app.jsonViewerState.searchMatches;
-        if (matches.length === 0) return;
-        
-        // Wrap around
-        if (index < 0) index = matches.length - 1;
-        if (index >= matches.length) index = 0;
-        
-        // Remove current-match from previous
-        matches.forEach(m => m.classList.remove('current-match'));
-        
-        // Set new current match
-        app.jsonViewerState.currentMatchIndex = index;
-        const currentMatch = matches[index];
-        currentMatch.classList.add('current-match');
-        
-        // Scroll to match
-        currentMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
-        // Update counter
-        app.updateSearchCounter();
-    },
-
-    /**
-     * Go to next search match
-     */
-    nextSearchMatch() {
-        if (app.jsonViewerState.searchMatches.length === 0) return;
-        app.navigateToMatch(app.jsonViewerState.currentMatchIndex + 1);
-    },
-
-    /**
-     * Go to previous search match
-     */
-    prevSearchMatch() {
-        if (app.jsonViewerState.searchMatches.length === 0) return;
-        app.navigateToMatch(app.jsonViewerState.currentMatchIndex - 1);
-    },
-
-    /**
-     * Expand all JSON tree nodes
-     */
-    expandAllJsonNodes() {
-        const toggles = document.querySelectorAll('#json-tree-viewer .json-tree-toggle');
-        toggles.forEach(toggle => {
-            toggle.dataset.expanded = 'true';
-            toggle.textContent = '▼';
-            const parent = toggle.parentElement;
-            const container = parent.nextElementSibling;
-            const closeLine = container?.nextElementSibling;
-            if (container) container.classList.remove('json-tree-collapsed');
-            if (closeLine) closeLine.classList.remove('json-tree-collapsed');
-        });
-    },
-
-    /**
-     * Collapse all JSON tree nodes
-     */
-    collapseAllJsonNodes() {
-        const toggles = document.querySelectorAll('#json-tree-viewer .json-tree-toggle');
-        toggles.forEach(toggle => {
-            toggle.dataset.expanded = 'false';
-            toggle.textContent = '▶';
-            const parent = toggle.parentElement;
-            const container = parent.nextElementSibling;
-            const closeLine = container?.nextElementSibling;
-            if (container) container.classList.add('json-tree-collapsed');
-            if (closeLine) closeLine.classList.add('json-tree-collapsed');
-        });
-    },
-
-    /**
-     * Toggle between tree and raw view
-     */
-    toggleJsonViewMode() {
-        app.jsonViewerState.mode = app.jsonViewerState.mode === 'tree' ? 'raw' : 'tree';
-        const btn = document.getElementById('json-raw-toggle');
-        btn.textContent = app.jsonViewerState.mode === 'tree' ? 'Raw' : 'Tree';
-        app.renderJsonView();
-    },
-
-    /**
-     * Copy JSON response to clipboard
-     */
-    async copyJsonToClipboard() {
-        if (!app.jsonViewerState.data) {
-            alert('No JSON data to copy');
-            return;
-        }
-
-        try {
-            let textToCopy;
-            if (typeof app.jsonViewerState.data === 'object' && app.jsonViewerState.data !== null) {
-                textToCopy = JSON.stringify(app.jsonViewerState.data, null, 2);
-            } else {
-                textToCopy = String(app.jsonViewerState.data);
-            }
-
-            await navigator.clipboard.writeText(textToCopy);
-            
-            // Show success feedback
-            const btn = document.getElementById('json-copy');
-            const originalText = btn.textContent;
-            btn.textContent = '✓ Copied!';
-            btn.classList.remove('bg-green-600', 'hover:bg-green-700');
-            btn.classList.add('bg-green-800');
-            
-            setTimeout(() => {
-                btn.textContent = originalText;
-                btn.classList.remove('bg-green-800');
-                btn.classList.add('bg-green-600', 'hover:bg-green-700');
-            }, 2000);
-        } catch (error) {
-            alert('Failed to copy to clipboard: ' + error.message);
-        }
-    },
 
     displayResponse(requestDetails, response, responseData, scriptOutput, processedUrl, duration) {
-        // Store response data for tree viewer
-        app.jsonViewerState.data = responseData;
-        
         // 1. Status and Time
         const status = response.status || 'N/A';
         const statusText = response.statusText || 'N/A';
@@ -1349,20 +1081,19 @@ const app = {
         }
         document.getElementById('response-headers').textContent = responseHeaderText || 'No headers';
 
-        // 4. Response Body with Syntax Highlighting or Tree View
-        if (typeof responseData === 'object' && responseData !== null) {
-            // Show tree view by default for JSON
-            app.jsonViewerState.mode = 'tree';
-            app.renderJsonView();
-        } else {
-            // Non-JSON: show as raw text
-            app.jsonViewerState.mode = 'raw';
-            const responseBodyCode = document.getElementById('response-body-code');
-            responseBodyCode.textContent = String(responseData);
-            responseBodyCode.className = 'language-markup';
-            Prism.highlightElement(responseBodyCode);
-            document.getElementById('json-tree-viewer').classList.add('hidden');
-            document.getElementById('response-body-viewer').classList.remove('hidden');
+        // 4. Response Body with JSON Editor
+        if (app.jsonEditor) {
+            // Update JSON editor with response data
+            try {
+                app.jsonEditor.set({
+                    json: typeof responseData === 'string' ? JSON.parse(responseData) : responseData
+                });
+            } catch (e) {
+                // If not valid JSON, show as text
+                app.jsonEditor.set({
+                    text: String(responseData)
+                });
+            }
         }
 
         // 5. Script Output
@@ -1472,28 +1203,38 @@ const app = {
         document.getElementById('save-request-btn').onclick = app.saveAsNewRequest;
         document.getElementById('save-script-btn').onclick = app.saveCurrentScript;
         
-        // JSON viewer controls
-        const jsonSearchInput = document.getElementById('json-search');
-        jsonSearchInput.oninput = (e) => {
-            app.jsonViewerState.searchTerm = e.target.value;
-            app.applyJsonSearch();
-        };
-        jsonSearchInput.onkeydown = (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                if (e.shiftKey) {
-                    app.prevSearchMatch();
-                } else {
-                    app.nextSearchMatch();
+        // Initialize JSON Editor for response (read-only)
+        const jsonEditorContainer = document.getElementById('json-editor-container');
+        if (jsonEditorContainer) {
+            app.jsonEditor = createJSONEditor({
+                target: jsonEditorContainer,
+                props: {
+                    mode: 'tree',
+                    mainMenuBar: true,
+                    navigationBar: true,
+                    statusBar: true,
+                    readOnly: true
                 }
-            }
-        };
-        document.getElementById('json-search-prev').onclick = app.prevSearchMatch;
-        document.getElementById('json-search-next').onclick = app.nextSearchMatch;
-        document.getElementById('json-collapse-all').onclick = app.collapseAllJsonNodes;
-        document.getElementById('json-expand-all').onclick = app.expandAllJsonNodes;
-        document.getElementById('json-copy').onclick = app.copyJsonToClipboard;
-        document.getElementById('json-raw-toggle').onclick = app.toggleJsonViewMode;
+            });
+        }
+        
+        // Initialize JSON Editor for request body (editable)
+        const requestBodyContainer = document.getElementById('request-body-editor');
+        if (requestBodyContainer) {
+            app.requestBodyEditor = createJSONEditor({
+                target: requestBodyContainer,
+                props: {
+                    mode: 'text',
+                    mainMenuBar: true,
+                    navigationBar: false,
+                    statusBar: true,
+                    readOnly: false
+                }
+            });
+            
+            // Set initial empty object
+            app.requestBodyEditor.set({ text: '' });
+        }
         document.getElementById('add-header-btn').onclick = () => {
             app.currentRequest.rawHeaders.push({ key: '', value: '' });
             app.renderHeaders();
