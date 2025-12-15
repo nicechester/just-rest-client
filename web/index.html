@@ -165,7 +165,10 @@
                     <!-- Body -->
                     <div class="border-t pt-4">
                         <h3 class="font-medium text-gray-600 mb-2">Body (POST/PUT/PATCH)</h3>
-                        <div id="request-body-editor" class="rounded border border-gray-300" style="height: 300px;"></div>
+                        <div class="resizable-editor-container">
+                            <div id="request-body-editor" class="rounded border border-gray-300" style="height: 300px;"></div>
+                            <div class="resize-handle" data-target="request-body-editor"></div>
+                        </div>
                     </div>
 
                     <!-- Pre-Request Script Selector/Editor -->
@@ -180,8 +183,9 @@
                         <select id="pre-script-select" class="w-full p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
                             <option value="">-- Select or Edit Pre-Script --</option>
                         </select>
-                        <div class="relative">
+                        <div class="resizable-editor-container">
                             <textarea id="pre-script-editor" rows="5" placeholder="Use setVar('key', 'value'); to set variables before request" class="w-full p-3 border rounded-lg text-sm code-input focus:ring-indigo-500 focus:border-indigo-500 font-mono"></textarea>
+                            <div class="resize-handle" data-target="pre-script-editor"></div>
                         </div>
                     </div>
 
@@ -197,8 +201,9 @@
                         <select id="post-script-select" class="w-full p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
                             <option value="">-- Select or Edit Script --</option>
                         </select>
-                        <div class="relative">
+                        <div class="resizable-editor-container">
                             <textarea id="post-script-editor" rows="5" placeholder="Use setVar('newKey', responseData.token);" class="w-full p-3 border rounded-lg text-sm code-input focus:ring-purple-500 focus:border-purple-500 font-mono"></textarea>
+                            <div class="resize-handle" data-target="post-script-editor"></div>
                         </div>
                     </div>
 
@@ -255,12 +260,18 @@
                                 <p class="text-xs text-gray-500 mb-1">Response Headers</p>
                                 <pre id="response-headers" class="bg-gray-100 text-gray-700 p-3 rounded code-output text-xs whitespace-pre-wrap"></pre>
                             </div>
-            <div>
+            <div id="response-body-wrapper">
                 <div class="flex items-center justify-between mb-2">
                     <p class="text-xs text-gray-500">Response Body</p>
+                    <button id="response-fullscreen-btn" class="px-3 py-1 text-xs bg-gray-600 text-white hover:bg-gray-700 rounded transition" title="Toggle Fullscreen">
+                        <span class="fullscreen-icon">⛶</span>
+                    </button>
                 </div>
                 <!-- JSON Editor Container -->
-                <div id="json-editor-container" class="rounded border border-gray-300" style="height: 400px;"></div>
+                <div class="resizable-editor-container">
+                    <div id="json-editor-container" class="rounded border border-gray-300" style="height: 400px;"></div>
+                    <div class="resize-handle" data-target="json-editor-container"></div>
+                </div>
             </div>
                         </div>
                     </div>

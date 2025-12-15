@@ -103,3 +103,68 @@ pre[class*="language-"] code {
     --jse-background-color: #1e1e1e;
     --jse-text-color: #e0e0e0;
 }
+
+/* Resizable Editor Containers */
+.resizable-editor-container {
+    position: relative;
+}
+
+.resize-handle {
+    height: 8px;
+    background: #e5e7eb;
+    border-top: 1px solid #d1d5db;
+    border-bottom: 1px solid #d1d5db;
+    cursor: ns-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.resize-handle:hover {
+    background: #d1d5db;
+}
+
+.resize-handle::before {
+    content: '';
+    width: 30px;
+    height: 3px;
+    background: #9ca3af;
+    border-radius: 2px;
+}
+
+/* Fullscreen Mode */
+#response-body-wrapper.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    background: white;
+    z-index: 9999;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+}
+
+#response-body-wrapper.fullscreen .resizable-editor-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+#response-body-wrapper.fullscreen #json-editor-container {
+    height: 100% !important;
+    flex: 1;
+}
+
+#response-body-wrapper.fullscreen .resize-handle {
+    display: none;
+}
+
+.fullscreen-icon {
+    font-size: 16px;
+    display: inline-block;
+}
