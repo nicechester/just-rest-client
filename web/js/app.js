@@ -130,6 +130,131 @@ const app = {
         }
     },
     
+    toggleResponseFullscreen() {
+        const wrapper = document.getElementById('response-body-wrapper');
+        const button = document.getElementById('response-fullscreen-btn');
+        const icon = button.querySelector('.fullscreen-icon');
+        
+        if (wrapper.classList.contains('fullscreen')) {
+            // Exit fullscreen
+            wrapper.classList.remove('fullscreen');
+            icon.textContent = '⛶';
+            button.title = 'Toggle Fullscreen';
+        } else {
+            // Enter fullscreen
+            wrapper.classList.add('fullscreen');
+            icon.textContent = '✕';
+            button.title = 'Exit Fullscreen (Esc)';
+            
+            // Add escape key listener
+            const escapeHandler = (e) => {
+                if (e.key === 'Escape' && wrapper.classList.contains('fullscreen')) {
+                    app.toggleResponseFullscreen();
+                    document.removeEventListener('keydown', escapeHandler);
+                }
+            };
+            document.addEventListener('keydown', escapeHandler);
+        }
+    },
+    
+    initResizeHandles() {
+        const handles = document.querySelectorAll('.resize-handle');
+        
+        handles.forEach(handle => {
+            let isResizing = false;
+            let startY = 0;
+            let startHeight = 0;
+            let targetElement = null;
+            let codeMirrorElement = null;
+            
+            handle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                startY = e.clientY;
+                
+                const targetId = handle.dataset.target;
+                targetElement = document.getElementById(targetId);
+                
+                if (targetElement) {
+                    // Check if this is a CodeMirror editor (textarea with CodeMirror wrapper)
+                    const cmWrapper = targetElement.nextElementSibling;
+                    if (cmWrapper && cmWrapper.classList.contains('CodeMirror')) {
+                        codeMirrorElement = cmWrapper;
+                        startHeight = codeMirrorElement.offsetHeight;
+                    } else {
+                        codeMirrorElement = null;
+                        startHeight = targetElement.offsetHeight;
+                    }
+                    
+                    document.body.style.cursor = 'ns-resize';
+                    document.body.style.userSelect = 'none';
+                }
+                
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing || !targetElement) return;
+                
+                const deltaY = e.clientY - startY;
+                const newHeight = Math.max(150, startHeight + deltaY); // Min height 150px
+                
+                // Resize CodeMirror wrapper if it exists, otherwise resize target element
+                if (codeMirrorElement) {
+                    codeMirrorElement.style.height = `${newHeight}px`;
+                    
+                    // Refresh CodeMirror
+                    const targetId = targetElement.id;
+                    if (targetId === 'pre-script-editor' && app.codeMirrorEditors.preScript) {
+                        app.codeMirrorEditors.preScript.setSize(null, newHeight);
+                    } else if (targetId === 'post-script-editor' && app.codeMirrorEditors.postScript) {
+                        app.codeMirrorEditors.postScript.setSize(null, newHeight);
+                    }
+                } else {
+                    targetElement.style.height = `${newHeight}px`;
+                }
+            });
+            
+            document.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    isResizing = false;
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                    
+                    // Save height to localStorage
+                    if (targetElement) {
+                        const targetId = targetElement.id;
+                        const actualHeight = codeMirrorElement ? 
+                            codeMirrorElement.style.height : 
+                            targetElement.style.height;
+                        localStorage.setItem(`editor-height-${targetId}`, actualHeight);
+                    }
+                }
+            });
+        });
+        
+        // Restore saved heights
+        const editors = ['request-body-editor', 'pre-script-editor', 'post-script-editor', 'json-editor-container'];
+        editors.forEach(editorId => {
+            const savedHeight = localStorage.getItem(`editor-height-${editorId}`);
+            const element = document.getElementById(editorId);
+            if (savedHeight && element) {
+                // Check if this is a CodeMirror editor
+                const cmWrapper = element.nextElementSibling;
+                if (cmWrapper && cmWrapper.classList.contains('CodeMirror')) {
+                    cmWrapper.style.height = savedHeight;
+                    // Update CodeMirror size
+                    if (editorId === 'pre-script-editor' && app.codeMirrorEditors.preScript) {
+                        app.codeMirrorEditors.preScript.setSize(null, parseInt(savedHeight));
+                    } else if (editorId === 'post-script-editor' && app.codeMirrorEditors.postScript) {
+                        app.codeMirrorEditors.postScript.setSize(null, parseInt(savedHeight));
+                    }
+                } else {
+                    element.style.height = savedHeight;
+                }
+            }
+        });
+    },
+    
     // Custom confirm dialog
     confirmDialog: {
         show(message, onConfirm) {
@@ -1235,6 +1360,12 @@ const app = {
             // Set initial empty object
             app.requestBodyEditor.set({ text: '' });
         }
+        
+        // Initialize resize handles for all editors
+        app.initResizeHandles();
+        
+        // Initialize fullscreen button
+        document.getElementById('response-fullscreen-btn').onclick = app.toggleResponseFullscreen;
         document.getElementById('add-header-btn').onclick = () => {
             app.currentRequest.rawHeaders.push({ key: '', value: '' });
             app.renderHeaders();
