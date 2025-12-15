@@ -875,6 +875,13 @@ const app = {
 
     saveCurrentRequest() {
         const title = app.elements.requestTitleInput.value || 'Untitled Request';
+        const group = app.activeGroups.requests;
+        
+        // Check if this request already exists
+        const allRequests = getAllRequests();
+        const existingRequest = allRequests.find(r => 
+            r.title === title && (r.group || 'global') === group
+        );
         
         const requestToSave = {
             id: app.currentRequest.id,
@@ -885,21 +892,28 @@ const app = {
             body: app.elements.bodyTextarea.value,
             preScriptId: app.elements.preScriptSelect.value,
             postScriptId: app.elements.postScriptSelect.value,
-            group: app.activeGroups.requests  // Save to active group
+            group: group
         };
         
         const savedReq = saveRequest(requestToSave);
         app.currentRequest.id = savedReq.id; 
         app.currentRequest.group = savedReq.group;
         app.elements.requestTitleInput.value = savedReq.title;
-        alert(`Request saved as: ${savedReq.title} (Group: ${savedReq.group})`);
+        
+        // Show appropriate message
+        if (existingRequest) {
+            alert(`✓ Request updated: ${savedReq.title} (Group: ${savedReq.group})`);
+        } else {
+            alert(`✓ Request saved: ${savedReq.title} (Group: ${savedReq.group})`);
+        }
+        
         app.renderCollections();
         app.renderGroupSelectors();
     },
     
     saveAsNewRequest() {
-        // Force create a new request by clearing the ID
-        app.currentRequest.id = null;
+        // This is now just an alias for saveCurrentRequest
+        // The storage layer handles deduplication by title+group
         app.saveCurrentRequest();
     },
     
@@ -979,7 +993,312 @@ const app = {
         );
     },
 
+    // JSON Tree viewer state
+    jsonViewerState: {
+        mode: 'tree', // 'tree' or 'raw'
+        data: null,
+        searchTerm: '',
+        searchMatches: [],
+        currentMatchIndex: -1
+    },
+
+    /**
+     * Render JSON in tree view or raw view
+     */
+    renderJsonView() {
+        const treeViewer = document.getElementById('json-tree-viewer');
+        const rawViewer = document.getElementById('response-body-viewer');
+        const rawCode = document.getElementById('response-body-code');
+        
+        if (app.jsonViewerState.mode === 'tree') {
+            // Show tree view
+            treeViewer.innerHTML = '';
+            treeViewer.classList.remove('hidden');
+            rawViewer.classList.add('hidden');
+            
+            if (app.jsonViewerState.data) {
+                app.renderJsonTree(app.jsonViewerState.data, treeViewer, '', 0);
+                app.applyJsonSearch();
+            }
+        } else {
+            // Show raw view
+            treeViewer.classList.add('hidden');
+            rawViewer.classList.remove('hidden');
+            
+            if (typeof app.jsonViewerState.data === 'object' && app.jsonViewerState.data !== null) {
+                const formattedJson = JSON.stringify(app.jsonViewerState.data, null, 2);
+                rawCode.textContent = formattedJson;
+                rawCode.className = 'language-json';
+                Prism.highlightElement(rawCode);
+            }
+        }
+    },
+
+    /**
+     * Recursively render JSON as an expandable tree
+     */
+    renderJsonTree(data, container, key = '', level = 0) {
+        const isArray = Array.isArray(data);
+        const isObject = typeof data === 'object' && data !== null && !isArray;
+        
+        if (isObject || isArray) {
+            const line = document.createElement('div');
+            line.className = 'json-tree-line';
+            line.dataset.path = key;
+            
+            const toggle = document.createElement('span');
+            toggle.className = 'json-tree-toggle';
+            toggle.textContent = '▼';
+            toggle.dataset.expanded = 'true';
+            
+            const keySpan = document.createElement('span');
+            if (key) {
+                keySpan.className = 'json-tree-key';
+                // Show only the last segment of the path, not the full path
+                const displayKey = key.split('.').pop();
+                keySpan.textContent = `"${displayKey}": `;
+            }
+            
+            const bracket = document.createElement('span');
+            bracket.style.color = '#ffd54f';
+            bracket.textContent = isArray ? '[' : '{';
+            
+            line.appendChild(toggle);
+            line.appendChild(keySpan);
+            line.appendChild(bracket);
+            
+            const childContainer = document.createElement('div');
+            childContainer.className = 'json-tree-node';
+            
+            const entries = isArray ? data.map((v, i) => [i, v]) : Object.entries(data);
+            entries.forEach(([k, v], idx) => {
+                const childKey = key ? `${key}.${k}` : String(k);
+                app.renderJsonTree(v, childContainer, childKey, level + 1);
+            });
+            
+            const closeLine = document.createElement('div');
+            closeLine.className = 'json-tree-line';
+            closeLine.style.marginLeft = '20px';
+            const closeBracket = document.createElement('span');
+            closeBracket.style.color = '#ffd54f';
+            closeBracket.textContent = isArray ? ']' : '}';
+            closeLine.appendChild(closeBracket);
+            
+            container.appendChild(line);
+            container.appendChild(childContainer);
+            container.appendChild(closeLine);
+            
+            // Toggle expand/collapse
+            toggle.onclick = () => {
+                const expanded = toggle.dataset.expanded === 'true';
+                toggle.dataset.expanded = !expanded;
+                toggle.textContent = expanded ? '▶' : '▼';
+                childContainer.classList.toggle('json-tree-collapsed');
+                closeLine.classList.toggle('json-tree-collapsed');
+            };
+            
+        } else {
+            // Primitive value
+            const line = document.createElement('div');
+            line.className = 'json-tree-line';
+            line.dataset.path = key;
+            line.style.marginLeft = '20px';
+            
+            const keySpan = document.createElement('span');
+            keySpan.className = 'json-tree-key';
+            keySpan.textContent = `"${key.split('.').pop()}": `;
+            
+            const valueSpan = document.createElement('span');
+            if (typeof data === 'string') {
+                valueSpan.className = 'json-tree-string';
+                valueSpan.textContent = `"${data}"`;
+            } else if (typeof data === 'number') {
+                valueSpan.className = 'json-tree-number';
+                valueSpan.textContent = data;
+            } else if (typeof data === 'boolean') {
+                valueSpan.className = 'json-tree-boolean';
+                valueSpan.textContent = data;
+            } else if (data === null) {
+                valueSpan.className = 'json-tree-null';
+                valueSpan.textContent = 'null';
+            }
+            
+            line.appendChild(keySpan);
+            line.appendChild(valueSpan);
+            container.appendChild(line);
+        }
+    },
+
+    /**
+     * Apply search filter to JSON tree
+     */
+    applyJsonSearch() {
+        const searchTerm = app.jsonViewerState.searchTerm.toLowerCase();
+        const lines = document.querySelectorAll('#json-tree-viewer .json-tree-line');
+        
+        // Reset search state
+        app.jsonViewerState.searchMatches = [];
+        app.jsonViewerState.currentMatchIndex = -1;
+        
+        lines.forEach(line => {
+            line.classList.remove('highlight', 'current-match');
+            if (!searchTerm) return;
+            
+            const text = line.textContent.toLowerCase();
+            if (text.includes(searchTerm)) {
+                line.classList.add('highlight');
+                app.jsonViewerState.searchMatches.push(line);
+            }
+        });
+        
+        // Update counter and navigate to first match if any
+        app.updateSearchCounter();
+        if (app.jsonViewerState.searchMatches.length > 0) {
+            app.navigateToMatch(0);
+        }
+    },
+
+    /**
+     * Update search result counter display
+     */
+    updateSearchCounter() {
+        const counter = document.getElementById('json-search-counter');
+        const total = app.jsonViewerState.searchMatches.length;
+        const current = app.jsonViewerState.currentMatchIndex + 1;
+        
+        if (total > 0) {
+            counter.textContent = `${current} of ${total}`;
+        } else if (app.jsonViewerState.searchTerm) {
+            counter.textContent = 'No matches';
+        } else {
+            counter.textContent = '';
+        }
+    },
+
+    /**
+     * Navigate to a specific search match
+     */
+    navigateToMatch(index) {
+        const matches = app.jsonViewerState.searchMatches;
+        if (matches.length === 0) return;
+        
+        // Wrap around
+        if (index < 0) index = matches.length - 1;
+        if (index >= matches.length) index = 0;
+        
+        // Remove current-match from previous
+        matches.forEach(m => m.classList.remove('current-match'));
+        
+        // Set new current match
+        app.jsonViewerState.currentMatchIndex = index;
+        const currentMatch = matches[index];
+        currentMatch.classList.add('current-match');
+        
+        // Scroll to match
+        currentMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Update counter
+        app.updateSearchCounter();
+    },
+
+    /**
+     * Go to next search match
+     */
+    nextSearchMatch() {
+        if (app.jsonViewerState.searchMatches.length === 0) return;
+        app.navigateToMatch(app.jsonViewerState.currentMatchIndex + 1);
+    },
+
+    /**
+     * Go to previous search match
+     */
+    prevSearchMatch() {
+        if (app.jsonViewerState.searchMatches.length === 0) return;
+        app.navigateToMatch(app.jsonViewerState.currentMatchIndex - 1);
+    },
+
+    /**
+     * Expand all JSON tree nodes
+     */
+    expandAllJsonNodes() {
+        const toggles = document.querySelectorAll('#json-tree-viewer .json-tree-toggle');
+        toggles.forEach(toggle => {
+            toggle.dataset.expanded = 'true';
+            toggle.textContent = '▼';
+            const parent = toggle.parentElement;
+            const container = parent.nextElementSibling;
+            const closeLine = container?.nextElementSibling;
+            if (container) container.classList.remove('json-tree-collapsed');
+            if (closeLine) closeLine.classList.remove('json-tree-collapsed');
+        });
+    },
+
+    /**
+     * Collapse all JSON tree nodes
+     */
+    collapseAllJsonNodes() {
+        const toggles = document.querySelectorAll('#json-tree-viewer .json-tree-toggle');
+        toggles.forEach(toggle => {
+            toggle.dataset.expanded = 'false';
+            toggle.textContent = '▶';
+            const parent = toggle.parentElement;
+            const container = parent.nextElementSibling;
+            const closeLine = container?.nextElementSibling;
+            if (container) container.classList.add('json-tree-collapsed');
+            if (closeLine) closeLine.classList.add('json-tree-collapsed');
+        });
+    },
+
+    /**
+     * Toggle between tree and raw view
+     */
+    toggleJsonViewMode() {
+        app.jsonViewerState.mode = app.jsonViewerState.mode === 'tree' ? 'raw' : 'tree';
+        const btn = document.getElementById('json-raw-toggle');
+        btn.textContent = app.jsonViewerState.mode === 'tree' ? 'Raw' : 'Tree';
+        app.renderJsonView();
+    },
+
+    /**
+     * Copy JSON response to clipboard
+     */
+    async copyJsonToClipboard() {
+        if (!app.jsonViewerState.data) {
+            alert('No JSON data to copy');
+            return;
+        }
+
+        try {
+            let textToCopy;
+            if (typeof app.jsonViewerState.data === 'object' && app.jsonViewerState.data !== null) {
+                textToCopy = JSON.stringify(app.jsonViewerState.data, null, 2);
+            } else {
+                textToCopy = String(app.jsonViewerState.data);
+            }
+
+            await navigator.clipboard.writeText(textToCopy);
+            
+            // Show success feedback
+            const btn = document.getElementById('json-copy');
+            const originalText = btn.textContent;
+            btn.textContent = '✓ Copied!';
+            btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+            btn.classList.add('bg-green-800');
+            
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.classList.remove('bg-green-800');
+                btn.classList.add('bg-green-600', 'hover:bg-green-700');
+            }, 2000);
+        } catch (error) {
+            alert('Failed to copy to clipboard: ' + error.message);
+        }
+    },
+
     displayResponse(requestDetails, response, responseData, scriptOutput, processedUrl, duration) {
+        // Store response data for tree viewer
+        app.jsonViewerState.data = responseData;
+        
         // 1. Status and Time
         const status = response.status || 'N/A';
         const statusText = response.statusText || 'N/A';
@@ -1030,18 +1349,20 @@ const app = {
         }
         document.getElementById('response-headers').textContent = responseHeaderText || 'No headers';
 
-        // 4. Response Body with Syntax Highlighting
-        const responseBodyCode = document.getElementById('response-body-code');
-        
+        // 4. Response Body with Syntax Highlighting or Tree View
         if (typeof responseData === 'object' && responseData !== null) {
-            const formattedJson = JSON.stringify(responseData, null, 2);
-            responseBodyCode.textContent = formattedJson;
-            responseBodyCode.className = 'language-json';
-            Prism.highlightElement(responseBodyCode);
+            // Show tree view by default for JSON
+            app.jsonViewerState.mode = 'tree';
+            app.renderJsonView();
         } else {
+            // Non-JSON: show as raw text
+            app.jsonViewerState.mode = 'raw';
+            const responseBodyCode = document.getElementById('response-body-code');
             responseBodyCode.textContent = String(responseData);
             responseBodyCode.className = 'language-markup';
             Prism.highlightElement(responseBodyCode);
+            document.getElementById('json-tree-viewer').classList.add('hidden');
+            document.getElementById('response-body-viewer').classList.remove('hidden');
         }
 
         // 5. Script Output
@@ -1150,6 +1471,29 @@ const app = {
         document.getElementById('new-request-btn').onclick = app.newRequest;
         document.getElementById('save-request-btn').onclick = app.saveAsNewRequest;
         document.getElementById('save-script-btn').onclick = app.saveCurrentScript;
+        
+        // JSON viewer controls
+        const jsonSearchInput = document.getElementById('json-search');
+        jsonSearchInput.oninput = (e) => {
+            app.jsonViewerState.searchTerm = e.target.value;
+            app.applyJsonSearch();
+        };
+        jsonSearchInput.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    app.prevSearchMatch();
+                } else {
+                    app.nextSearchMatch();
+                }
+            }
+        };
+        document.getElementById('json-search-prev').onclick = app.prevSearchMatch;
+        document.getElementById('json-search-next').onclick = app.nextSearchMatch;
+        document.getElementById('json-collapse-all').onclick = app.collapseAllJsonNodes;
+        document.getElementById('json-expand-all').onclick = app.expandAllJsonNodes;
+        document.getElementById('json-copy').onclick = app.copyJsonToClipboard;
+        document.getElementById('json-raw-toggle').onclick = app.toggleJsonViewMode;
         document.getElementById('add-header-btn').onclick = () => {
             app.currentRequest.rawHeaders.push({ key: '', value: '' });
             app.renderHeaders();
@@ -1295,7 +1639,7 @@ const app = {
         // Export/Import listeners
         document.getElementById('export-btn').onclick = () => exportAllData(getVariableStore(), getAllRequests(), getAllScripts());
         document.getElementById('import-btn').onclick = () => document.getElementById('import-file').click();
-        
+
         // About dialog listeners - icon click to show About
         document.getElementById('app-icon').onclick = () => app.showAbout();
         document.getElementById('about-close').onclick = () => app.hideAbout();
