@@ -134,17 +134,33 @@ const app = {
         const wrapper = document.getElementById('response-body-wrapper');
         const button = document.getElementById('response-fullscreen-btn');
         const icon = button.querySelector('.fullscreen-icon');
+        const container = document.getElementById('json-editor-container');
         
         if (wrapper.classList.contains('fullscreen')) {
             // Exit fullscreen
             wrapper.classList.remove('fullscreen');
             icon.textContent = '⛶';
             button.title = 'Toggle Fullscreen';
+            
+            // Force editor container to recalculate size
+            setTimeout(() => {
+                if (container) {
+                    container.style.height = localStorage.getItem('editor-height-json-editor-container') || '400px';
+                }
+                // Trigger window resize event to let editor adjust
+                window.dispatchEvent(new Event('resize'));
+            }, 100);
         } else {
             // Enter fullscreen
             wrapper.classList.add('fullscreen');
             icon.textContent = '✕';
             button.title = 'Exit Fullscreen (Esc)';
+            
+            // Force editor to fill fullscreen
+            setTimeout(() => {
+                // Trigger window resize event to let editor adjust
+                window.dispatchEvent(new Event('resize'));
+            }, 100);
             
             // Add escape key listener
             const escapeHandler = (e) => {
