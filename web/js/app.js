@@ -105,6 +105,10 @@ const app = {
         if (app.requestBodyEditor) {
             try {
                 const content = app.requestBodyEditor.get();
+                // Handle both JSON and text modes
+                if (content.json !== undefined) {
+                    return JSON.stringify(content.json);
+                }
                 return content.text || '';
             } catch (e) {
                 return '';
@@ -454,6 +458,10 @@ const app = {
         const dataMatch = cmd.match(dataRegex);
         if (dataMatch) {
             result.body = dataMatch[2];
+            // If no method was explicitly specified but data is present, default to POST (curl behavior)
+            if (result.method === 'GET') {
+                result.method = 'POST';
+            }
         }
         
         // Extract URL (remaining quoted or unquoted string)
@@ -546,9 +554,14 @@ const app = {
             app.setRequestBody(parsed.body);
         }
         
-        // Clear request ID and title (this is a new request)
+        // Clear request ID, title, group, and scripts (this is a new request)
         app.currentRequest.id = null;
+        app.currentRequest.group = app.activeGroups.requests; // Set to current active group
+        app.currentRequest.preScriptId = '';
+        app.currentRequest.postScriptId = '';
         app.elements.requestTitleInput.value = 'Imported from cURL';
+        app.elements.preScriptSelect.value = '';
+        app.elements.postScriptSelect.value = '';
         
         // Switch to Request Builder tab if not already there
         app.switchMainTab('request');
