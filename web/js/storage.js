@@ -137,10 +137,8 @@ function saveRequest(requestObject) {
     requestObject.id = requests[existingIndex].id;
     requests[existingIndex] = requestObject;
   } else {
-    // Create new request
-    if (!requestObject.id) {
-      requestObject.id = `req-${Date.now()}`;
-    }
+    // Create new request - always generate a new ID
+    requestObject.id = `req-${Date.now()}`;
     requests.push(requestObject);
   }
 
@@ -163,21 +161,29 @@ function getAllScripts() {
 
 /**
  * Saves or updates a single script object.
+ * If a script with the same name and group exists, updates it.
+ * Otherwise creates a new script.
  * @param {Object} scriptObject - The script object to save.
  * @return {Object} The saved script object (with an ID).
  */
 function saveScript(scriptObject) {
   const scripts = getAllScripts();
-  if (!scriptObject.id) {
-    scriptObject.id = `script-${Date.now()}`;
-  }
+  const group = scriptObject.group || DEFAULT_GROUP;
+  const name = scriptObject.name || 'Untitled Script';
+  
+  // Check if a script with same name in same group exists
+  const existingIndex = scripts.findIndex(s => 
+    s.name === name && (s.group || DEFAULT_GROUP) === group
+  );
 
-  const index = scripts.findIndex(s => s.id === scriptObject.id);
-
-  if (index !== -1) {
-    scripts[index] = scriptObject; // Update existing
+  if (existingIndex !== -1) {
+    // Update existing script, preserve its ID
+    scriptObject.id = scripts[existingIndex].id;
+    scripts[existingIndex] = scriptObject;
   } else {
-    scripts.push(scriptObject); // Add new
+    // Create new script - always generate a new ID
+    scriptObject.id = `script-${Date.now()}`;
+    scripts.push(scriptObject);
   }
 
   saveCollection(STORAGE_KEYS.SCRIPTS, scripts);
