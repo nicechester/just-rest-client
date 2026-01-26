@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Postman Import</title>
+</head>
+<body>
+    <h1>Postman Import Test</h1>
+    <p>Open the browser console to see test results.</p>
+    <button id="testBtn">Run Import Test</button>
+    <pre id="output" style="background: #f5f5f5; padding: 20px; margin-top: 20px;"></pre>
+
+    <script type="module">
+        import { 
+            loadVariableStore, 
+            saveVariableStore, 
+            getAllRequests, 
+            saveRequest, 
+            getAllScripts, 
+            saveScript,
+            addGroupName
+        } from './web/js/storage.js';
+
+        async function testPostmanImport() {
+            const output = document.getElementById('output');
+            output.textContent = 'Loading Postman collection...\n';
+
+            try {
+                // Load the Discovery Agents collection
+                const response = await fetch('/Users/chester.kim/workspace/discovery/postman-collections/Discovery Agents.postman_collection.json');
+                const postmanCollection = await response.json();
+
+                output.textContent += `✓ Loaded collection: ${postmanCollection.info.name}\n\n`;
+
+                // Test variable extraction
+                output.textContent += 'Variables in collection:\n';
+                if (postmanCollection.variable) {
+                    postmanCollection.variable.forEach(v => {
+                        output.textContent += `  - ${v.key}: ${v.value}\n`;
+                    });
+                }
+
+                // Count requests
+                let requestCount = 0;
+                function countRequests(items) {
+                    items.forEach(item => {
+                        if (item.item) {
+                            countRequests(item.item);
+                        } else if (item.request) {
+                            requestCount++;
+                        }
+                    });
+                }
+                if (postmanCollection.item) {
+                    countRequests(postmanCollection.item);
+                }
+
+                output.textContent += `\nTotal requests found: ${requestCount}\n`;
+
+                // Show first few request names
+                output.textContent += '\nFirst few requests:\n';
+                let shown = 0;
+                function showRequests(items, prefix = '') {
+                    for (const item of items) {
+                        if (shown >= 5) return;
+                        if (item.item) {
+                            showRequests(item.item, prefix + item.name + ' / ');
+                        } else if (item.request) {
+                            output.textContent += `  - ${prefix}${item.name}\n`;
+                            shown++;
+                        }
+                    }
+                }
+                if (postmanCollection.item) {
+                    showRequests(postmanCollection.item);
+                }
+
+                output.textContent += '\n✓ Test completed successfully!\n';
+                output.textContent += '\nYou can now use the "Import Postman" button in the main app.';
+
+            } catch (error) {
+                output.textContent += `\n❌ Error: ${error.message}\n`;
+                console.error('Test error:', error);
+            }
+        }
+
+        document.getElementById('testBtn').addEventListener('click', testPostmanImport);
+
+        // Auto-run on load
+        console.log('Test page loaded. Click the button to test import.');
+    </script>
+</body>
+</html>

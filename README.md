@@ -48,6 +48,7 @@ npm run tauri:build
 
 **Documentation:**
 - 📖 [SCRIPTING.md](SCRIPTING.md) - Complete scripting guide with examples
+- 📦 [POSTMAN_IMPORT.md](POSTMAN_IMPORT.md) - Import Postman collections guide
 - 🏗️ [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture and design
 - 🖥️ [TAURI.md](TAURI.md) - Desktop app setup and Tauri features
 
@@ -70,10 +71,12 @@ npm run tauri:build
   - `log(...args)` - Output logging
   - Full `async/await` support
 
-### Organization
+### Organization & Import/Export
 - **Request Collections**: Group API calls by feature, module, or environment
 - **Script Libraries**: Organize reusable pre/post-request scripts
 - **Export/Import**: Backup and share collections with team members
+- **Postman Collection Import**: Import existing Postman collections with variables, requests, and scripts
+- **cURL Import**: Paste cURL commands to quickly create requests
 - **JSON Viewer**: Interactive, syntax-highlighted visualization
 
 ### Developer Experience

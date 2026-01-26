@@ -408,6 +408,253 @@ const app = {
     },
     
     /**
+     * Parse and import a Postman collection
+     * @param {object} postmanCollection - The Postman collection JSON object
+     * @returns {object} Import summary {variablesImported, requestsImported, scriptsImported}
+     */
+    importPostmanCollection(postmanCollection) {
+        const groupName = postmanCollection.info?.name || 'Imported Collection';
+        const summary = {
+            groupName: groupName,
+            variablesImported: 0,
+            requestsImported: 0,
+            scriptsImported: 0
+        };
+        
+        // 1. Import Variables
+        if (postmanCollection.variable && postmanCollection.variable.length > 0) {
+            const varStore = getVariableStore();
+            if (!varStore[groupName]) {
+                varStore[groupName] = {};
+            }
+            
+            postmanCollection.variable.forEach(pmVar => {
+                if (pmVar.key) {
+                    varStore[groupName][pmVar.key] = pmVar.value || '';
+                    summary.variablesImported++;
+                }
+            });
+            
+            saveVariableStore(varStore);
+            addGroupName('variables', groupName);
+        }
+        
+        // 2. Import Requests (recursive for folders)
+        const importItems = (items, folder = '') => {
+            items.forEach(item => {
+                if (item.item) {
+                    // This is a folder, recurse into it
+                    const folderName = folder ? `${folder} / ${item.name}` : item.name;
+                    importItems(item.item, folderName);
+                } else if (item.request) {
+                    // This is a request
+                    const request = item.request;
+                    const requestName = folder ? `${folder} / ${item.name}` : item.name;
+                    
+                    // Build URL from Postman format
+                    let url = '';
+                    if (typeof request.url === 'string') {
+                        url = request.url;
+                    } else if (request.url && request.url.raw) {
+                        url = request.url.raw;
+                    } else if (request.url) {
+                        // Build from parts
+                        const protocol = request.url.protocol || 'https';
+                        const host = Array.isArray(request.url.host) ? request.url.host.join('.') : request.url.host;
+                        const path = Array.isArray(request.url.path) ? '/' + request.url.path.join('/') : '';
+                        const query = Array.isArray(request.url.query) ? 
+                            '?' + request.url.query.map(q => `${q.key}=${q.value}`).join('&') : '';
+                        url = `${protocol}://${host}${path}${query}`;
+                    }
+                    
+                    // Extract headers
+                    const headers = [];
+                    if (request.header && Array.isArray(request.header)) {
+                        request.header.forEach(h => {
+                            if (h.key && !h.disabled) {
+                                headers.push({ key: h.key, value: h.value || '' });
+                            }
+                        });
+                    }
+                    
+                    // Extract body
+                    let body = '';
+                    if (request.body) {
+                        if (request.body.mode === 'raw' && request.body.raw) {
+                            body = request.body.raw;
+                        } else if (request.body.mode === 'urlencoded' && request.body.urlencoded) {
+                            // Convert form data to JSON
+                            const formData = {};
+                            request.body.urlencoded.forEach(item => {
+                                if (!item.disabled) {
+                                    formData[item.key] = item.value;
+                                }
+                            });
+                            body = JSON.stringify(formData, null, 2);
+                        }
+                        // Note: formdata mode with file uploads is not supported
+                    }
+                    
+                    // Handle pre-request scripts
+                    let preScriptId = '';
+                    const preRequestEvent = item.event?.find(e => e.listen === 'prerequest');
+                    if (preRequestEvent && preRequestEvent.script && preRequestEvent.script.exec) {
+                        const preScriptCode = Array.isArray(preRequestEvent.script.exec) ? 
+                            preRequestEvent.script.exec.join('\n') : preRequestEvent.script.exec;
+                        
+                        if (preScriptCode.trim()) {
+                            const preScript = {
+                                name: `${requestName} - Pre`,
+                                code: preScriptCode,
+                                type: 'pre-request',
+                                group: groupName
+                            };
+                            const savedPreScript = saveScript(preScript);
+                            preScriptId = savedPreScript.id;
+                            summary.scriptsImported++;
+                        }
+                    }
+                    
+                    // Handle test/post-request scripts
+                    let postScriptId = '';
+                    const testEvent = item.event?.find(e => e.listen === 'test');
+                    if (testEvent && testEvent.script && testEvent.script.exec) {
+                        const testScriptCode = Array.isArray(testEvent.script.exec) ? 
+                            testEvent.script.exec.join('\n') : testEvent.script.exec;
+                        
+                        if (testScriptCode.trim()) {
+                            const postScript = {
+                                name: `${requestName} - Post`,
+                                code: testScriptCode,
+                                group: groupName
+                            };
+                            const savedPostScript = saveScript(postScript);
+                            postScriptId = savedPostScript.id;
+                            summary.scriptsImported++;
+                        }
+                    }
+                    
+                    // Save the request
+                    const requestToSave = {
+                        title: requestName,
+                        url: url,
+                        method: request.method || 'GET',
+                        rawHeaders: headers.length > 0 ? [...headers, { key: '', value: '' }] : [{ key: '', value: '' }],
+                        body: body,
+                        preScriptId: preScriptId,
+                        postScriptId: postScriptId,
+                        group: groupName
+                    };
+                    
+                    saveRequest(requestToSave);
+                    summary.requestsImported++;
+                }
+            });
+        };
+        
+        if (postmanCollection.item && Array.isArray(postmanCollection.item)) {
+            importItems(postmanCollection.item);
+        }
+        
+        // Persist the group name
+        addGroupName('requests', groupName);
+        addGroupName('scripts', groupName);
+        
+        return summary;
+    },
+    
+    /**
+     * Import Postman environment as variables
+     */
+    importPostmanEnvironment(postmanEnv) {
+        const groupName = postmanEnv.name || 'Imported Environment';
+        const varStore = getVariableStore();
+        
+        if (!varStore[groupName]) {
+            varStore[groupName] = {};
+        }
+        
+        let variablesImported = 0;
+        if (postmanEnv.values && Array.isArray(postmanEnv.values)) {
+            postmanEnv.values.forEach(item => {
+                if (item.key && item.enabled !== false) {
+                    varStore[groupName][item.key] = item.value || '';
+                    variablesImported++;
+                }
+            });
+        }
+        
+        saveVariableStore(varStore);
+        addGroupName('variables', groupName);
+        
+        return {
+            groupName: groupName,
+            variablesImported: variablesImported
+        };
+    },
+    
+    /**
+     * Handle Postman collection or environment import from file
+     */
+    async handlePostmanImport(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        try {
+            const fileContent = await file.text();
+            const postmanData = JSON.parse(fileContent);
+            
+            // Check if it's an environment file
+            if (postmanData._postman_variable_scope === 'environment' || 
+                (postmanData.values && Array.isArray(postmanData.values) && !postmanData.item)) {
+                
+                const summary = app.importPostmanEnvironment(postmanData);
+                
+                // Switch to the new group FIRST
+                app.switchGroup('variables', summary.groupName);
+                
+                // Then refresh UI (this will show the correct selected group)
+                app.renderGroupSelectors();
+                app.renderVariableStore();
+                
+                // Show summary
+                alert(`✓ Postman Environment imported!\n\nGroup: ${summary.groupName}\nVariables: ${summary.variablesImported}`);
+                
+            } 
+            // Check if it's a collection file
+            else if (postmanData.info && postmanData.info.schema && 
+                postmanData.info.schema.includes('getpostman.com')) {
+                
+                const summary = app.importPostmanCollection(postmanData);
+                
+                // Switch to the new group FIRST
+                app.switchGroup('variables', summary.groupName);
+                app.switchGroup('requests', summary.groupName);
+                app.switchGroup('scripts', summary.groupName);
+                
+                // Then refresh UI (this will show the correct selected groups)
+                app.renderGroupSelectors();
+                app.renderVariableStore();
+                app.renderCollections();
+                
+                // Show summary
+                alert(`✓ Postman Collection imported!\n\nGroup: ${summary.groupName}\nVariables: ${summary.variablesImported}\nRequests: ${summary.requestsImported}\nScripts: ${summary.scriptsImported}`);
+            }
+            else {
+                alert('Invalid Postman file format. Please select a valid Postman Collection or Environment JSON file.');
+                return;
+            }
+            
+        } catch (error) {
+            alert('Failed to import Postman file: ' + error.message);
+            console.error('Import error:', error);
+        }
+        
+        // Reset file input
+        event.target.value = '';
+    },
+    
+    /**
      * Parse a cURL command and extract request details
      * @param {string} curlCommand - The cURL command to parse
      * @returns {object} Parsed request details {url, method, headers, body}
@@ -1351,7 +1598,40 @@ const app = {
 
         // Attach event listeners
         document.getElementById('send-btn').onclick = app.handleSend;
+        
+        // Sidebar Import split button
+        const sidebarImportMainBtn = document.getElementById('sidebar-import-main-btn');
+        const sidebarImportDropdownBtn = document.getElementById('sidebar-import-dropdown-btn');
+        const sidebarImportDropdownMenu = document.getElementById('sidebar-import-dropdown-menu');
+        
+        // Main button action - Import JSON (default)
+        sidebarImportMainBtn.onclick = () => {
+            document.getElementById('import-file').click();
+        };
+        
+        // Dropdown arrow toggles menu
+        sidebarImportDropdownBtn.onclick = (e) => {
+            e.stopPropagation();
+            sidebarImportDropdownMenu.classList.toggle('hidden');
+        };
+        
+        // Close sidebar dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            const splitButtonContainer = sidebarImportMainBtn.parentElement.parentElement;
+            if (!splitButtonContainer.contains(e.target)) {
+                sidebarImportDropdownMenu.classList.add('hidden');
+            }
+        });
+        
+        // Sidebar Import menu item
+        document.getElementById('import-postman-btn').onclick = () => {
+            sidebarImportDropdownMenu.classList.add('hidden');
+            document.getElementById('import-postman-file').click();
+        };
+        
+        // Request builder Import cURL button (simple, no dropdown)
         document.getElementById('import-curl-btn').onclick = app.showImportCurlDialog;
+        
         document.getElementById('curl-btn').onclick = app.showCurlDialog;
         document.getElementById('new-request-btn').onclick = app.newRequest;
         document.getElementById('save-request-btn').onclick = app.saveAsNewRequest;
@@ -1539,7 +1819,7 @@ const app = {
 
         // Export/Import listeners
         document.getElementById('export-btn').onclick = () => exportAllData(getVariableStore(), getAllRequests(), getAllScripts());
-        document.getElementById('import-btn').onclick = () => document.getElementById('import-file').click();
+        // Import button is now a dropdown with handlers defined above
 
         // About dialog listeners - icon click to show About
         document.getElementById('app-icon').onclick = () => app.showAbout();

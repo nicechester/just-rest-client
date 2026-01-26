@@ -113,7 +113,30 @@
             <div class="bg-white p-4 rounded-xl shadow-lg border border-gray-200 flex space-x-2">
                 <button id="export-btn" class="flex-1 bg-green-500 text-white p-3 rounded-lg hover:bg-green-600 transition">Export All</button>
                 <input type="file" id="import-file" accept="application/json" class="hidden" onchange="window.app.handleImport(event)">
-                <button id="import-btn" class="flex-1 bg-yellow-500 text-white p-3 rounded-lg hover:bg-yellow-600 transition">Import</button>
+                <input type="file" id="import-postman-file" accept="application/json,.json" class="hidden" onchange="window.app.handlePostmanImport(event)">
+                
+                <!-- Import Split Button -->
+                <div class="flex-1 relative">
+                    <div class="flex">
+                        <!-- Main action button (Import JSON) -->
+                        <button id="sidebar-import-main-btn" class="flex-1 bg-yellow-500 text-white p-3 rounded-l-lg hover:bg-yellow-600 transition">
+                            Import
+                        </button>
+                        <!-- Dropdown toggle button -->
+                        <button id="sidebar-import-dropdown-btn" class="bg-yellow-500 text-white px-2 rounded-r-lg hover:bg-yellow-600 transition border-l border-yellow-600 flex items-center">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                    <!-- Dropdown menu -->
+                    <div id="sidebar-import-dropdown-menu" class="hidden absolute left-0 mt-2 w-full bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                        <button id="import-postman-btn" class="w-full text-left px-4 py-3 hover:bg-gray-100 text-gray-700 font-medium flex items-center space-x-2 rounded-lg">
+                            <span class="text-purple-600">📦</span>
+                            <span>Import Postman</span>
+                        </button>
+                    </div>
+                </div>
             </div>
 
         </aside>
@@ -147,7 +170,7 @@
                             <textarea id="url-input" placeholder="Enter URL (e.g., {{baseUrl}}/users)" rows="2" class="flex-1 p-3 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 resize-y font-mono"></textarea>
                         </div>
                         <div class="flex justify-end space-x-2">
-                            <button id="import-curl-btn" class="bg-green-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-green-700 transition duration-150" title="Import from cURL">Import</button>
+                            <button id="import-curl-btn" class="bg-green-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-green-700 transition duration-150" title="Import from cURL">Import cURL</button>
                             <button id="curl-btn" class="bg-gray-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-gray-700 transition duration-150" title="Show as cURL">cURL</button>
                             <button id="send-btn" class="bg-blue-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-blue-700 transition duration-150">Send</button>
                         </div>
