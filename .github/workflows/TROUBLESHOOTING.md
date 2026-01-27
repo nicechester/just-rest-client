@@ -11,13 +11,15 @@
 - Set `CI: false` in workflow environment variables
 - Use npm-based Tauri CLI instead of cargo directly
 
-### Issue 2: Linux Build - `Unable to locate package libwebkit2gtk-4.0-dev`
+### Issue 2: Linux Build - Package Conflicts
 
-**Problem:** Ubuntu 22.04+ replaced `libwebkit2gtk-4.0-dev` with `libwebkit2gtk-4.1-dev`.
+**Problem 1:** Ubuntu 22.04+ replaced `libwebkit2gtk-4.0-dev` with `libwebkit2gtk-4.1-dev`.
+
+**Problem 2:** `libappindicator3-dev` and `libayatana-appindicator3-dev` conflict with each other.
 
 **Fix Applied:**
-- Updated to use `libwebkit2gtk-4.1-dev`
-- Added `libayatana-appindicator3-dev` as a fallback for system tray support
+- Updated to use `libwebkit2gtk-4.1-dev` (newer WebKit)
+- Use `libayatana-appindicator3-dev` only (Ayatana is the modern fork, replaces the old libappindicator)
 
 ### Issue 3: Artifact Upload Failures
 
