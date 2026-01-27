@@ -45,6 +45,7 @@ Execute **before** the main request is sent. Use them to:
 
 **Available Context:**
 ```javascript
+requestData        // Raw request data (method, url, headers, body)
 getVar(key)        // Get variable value
 setVar(key, value) // Set variable value
 log(...args)       // Log to script output
@@ -63,6 +64,7 @@ Execute **after** receiving the response. Use them to:
 ```javascript
 response           // Response object (status, headers, etc.)
 responseData       // Parsed response body (JSON or text)
+requestData        // Processed request data (method, url, headers, body)
 getVar(key)        // Get variable value
 setVar(key, value) // Set variable value
 log(...args)       // Log to script output
@@ -145,6 +147,80 @@ log('Variables:', { token: getVar('token'), url: getVar('baseUrl') });
 [Log] User data: {"id": 123, "name": "John"}
 [Log] Variables: {"token": "abc123", "url": "https://api.example.com"}
 ```
+
+---
+
+### `requestData`
+
+Access details about the HTTP request being sent.
+
+**Available In:**
+- ✅ Pre-Request Scripts (raw data before templating)
+- ✅ Post-Request Scripts (processed data that was actually sent)
+
+**Properties:**
+- `method` (string): HTTP method (GET, POST, etc.)
+- `url` (string): Request URL
+- `headers` (object/array): Request headers
+- `body` (string): Request body
+
+**Example (Pre-Request):**
+```javascript
+// In pre-request scripts, requestData contains RAW values (before templating)
+log('Method:', requestData.method);
+log('URL:', requestData.url);  // May contain {{variables}}
+log('Body:', requestData.body);  // Contains {{variables}} unresolved
+
+// Example: Add custom header based on request method
+if (requestData.method === 'POST') {
+  setVar('needsAuth', 'true');
+}
+
+// ⚠️ Note: To access body fields, use getVar() instead of parsing body:
+const userId = getVar('userId');  // Get resolved value
+log('User ID:', userId);
+```
+
+**Example (Post-Request):**
+```javascript
+// In post-request scripts, requestData contains PROCESSED values (after templating)
+log('Sent to:', requestData.url);  // Variables replaced with actual values
+log('Request body:', requestData.body);  // Variables resolved
+
+// ✅ Parse body to access fields (values are resolved)
+const body = JSON.parse(requestData.body);
+log('User ID from body:', body.userId);  // Actual value, not {{userId}}
+
+// Example: Log what was actually sent
+log('Full request:', {
+  method: requestData.method,
+  url: requestData.url,
+  headers: requestData.headers,
+  body: body
+});
+```
+
+**Differences:**
+- **Pre-Request**: `requestData.url` = `"{{baseUrl}}/users"` (raw template)
+- **Post-Request**: `requestData.url` = `"https://api.example.com/users"` (resolved)
+
+**⚠️ Important Note about Request Body:**
+
+If you need to **parse and access fields** from `requestData.body`, use a **post-request script**:
+
+```javascript
+// ❌ Pre-Request: Body contains unresolved templates
+const body = JSON.parse(requestData.body);
+console.log(body.userId);  // "{{userId}}" - still a template!
+
+// ✅ Post-Request: Body has actual resolved values
+const body = JSON.parse(requestData.body);
+console.log(body.userId);  // "D883CBBD-D81D-4293-9CE1-911B6C5D77C0" - actual value!
+```
+
+**Best Practice:** 
+- Use **pre-request scripts** to set variables before sending
+- Use **post-request scripts** to read what was actually sent (after variable templating)
 
 ---
 
@@ -445,7 +521,53 @@ if (newCount >= 100) {
 }
 ```
 
-### 7. Response Validation
+### 7. Request Logging & Debugging
+
+**Pre-Request: Log Request Details**
+```javascript
+// Log what will be sent (before variable templating)
+log('=== Outgoing Request ===');
+log('Method:', requestData.method);
+log('URL Template:', requestData.url);
+log('Raw Body:', requestData.body);
+
+// Check if request will use authentication
+if (requestData.url.includes('{{access_token}}')) {
+  const token = getVar('access_token');
+  if (!token) {
+    log('⚠️ Warning: Request requires token but none is set');
+  }
+}
+```
+
+**Post-Request: Log Actual Request & Response**
+```javascript
+// Log what was actually sent (after variable templating)
+log('=== Request Sent ===');
+log('Method:', requestData.method);
+log('URL:', requestData.url);  // Variables resolved
+log('Body:', requestData.body);
+
+log('=== Response Received ===');
+log('Status:', response.status, response.statusText);
+log('Data:', responseData);
+
+// Save request/response pair for audit
+const logEntry = {
+  timestamp: new Date().toISOString(),
+  request: {
+    method: requestData.method,
+    url: requestData.url
+  },
+  response: {
+    status: response.status,
+    data: responseData
+  }
+};
+log('Audit entry:', logEntry);
+```
+
+### 8. Response Validation
 
 **Post-Request: Validate Structure**
 ```javascript

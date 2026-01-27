@@ -15,9 +15,10 @@ import { tauriFetch, isTauri } from './request.js';
  * @param {Array<string>|string} postScriptIds - Array of script IDs or single ID (backward compat).
  * @param {Response} response - The native Fetch Response object.
  * @param {Object} responseData - The parsed response body data (e.g., JSON object).
+ * @param {Object} requestData - The request details that were sent (method, url, headers, body).
  * @return {string} A log of the script execution, including errors or variable updates.
  */
-async function executePostScript(postScriptIds, response, responseData) {
+async function executePostScript(postScriptIds, response, responseData, requestData = {}) {
   let scriptOutput = '';
 
   // Handle backward compatibility: convert single ID to array
@@ -102,8 +103,8 @@ async function executePostScript(postScriptIds, response, responseData) {
 
     // 3. Execute the code using new Function() for a cleaner scope
     try {
-      // Arguments: response (Fetch Response), responseData (Parsed JSON/Text), getVar (Get variable), setVar (Set variable), log (Logging function), http (HTTP client)
-      const scriptFunction = new Function('response', 'responseData', 'getVar', 'setVar', 'log', 'http', `
+      // Arguments: response (Fetch Response), responseData (Parsed JSON/Text), requestData (Request details), getVar (Get variable), setVar (Set variable), log (Logging function), http (HTTP client)
+      const scriptFunction = new Function('response', 'responseData', 'requestData', 'getVar', 'setVar', 'log', 'http', `
         return (async () => {
           // User's script starts here.
           ${scriptCode}
@@ -111,7 +112,7 @@ async function executePostScript(postScriptIds, response, responseData) {
       `);
 
       // Execute the user's script (now async)
-      await scriptFunction(response, responseData, getVar, setVar, log, http);
+      await scriptFunction(response, responseData, requestData, getVar, setVar, log, http);
 
     } catch (error) {
       scriptOutput += `[Script Execution Error] ${error.toString()}\n`;
@@ -126,9 +127,10 @@ async function executePostScript(postScriptIds, response, responseData) {
 /**
  * Executes multiple pre-request scripts before the request is sent.
  * @param {Array<string>|string} preScriptIds - Array of script IDs or single ID (backward compat).
+ * @param {Object} requestData - The raw request details (method, url, headers, body) before templating.
  * @return {string} A log of the script execution.
  */
-async function executePreScript(preScriptIds) {
+async function executePreScript(preScriptIds, requestData = {}) {
   let scriptOutput = '[Pre-Request Scripts]\n';
 
   // Handle backward compatibility: convert single ID to array
@@ -213,8 +215,8 @@ async function executePreScript(preScriptIds) {
 
     // 3. Execute the code using new Function() for a cleaner scope
     try {
-      // Arguments: getVar (Get variable), setVar (Set variable), log (Logging function), http (HTTP client)
-      const scriptFunction = new Function('getVar', 'setVar', 'log', 'http', `
+      // Arguments: requestData (Raw request details), getVar (Get variable), setVar (Set variable), log (Logging function), http (HTTP client)
+      const scriptFunction = new Function('requestData', 'getVar', 'setVar', 'log', 'http', `
         return (async () => {
           // User's pre-script starts here.
           ${scriptCode}
@@ -222,7 +224,7 @@ async function executePreScript(preScriptIds) {
       `);
 
       // Execute the user's pre-script (now async)
-      await scriptFunction(getVar, setVar, log, http);
+      await scriptFunction(requestData, getVar, setVar, log, http);
 
     } catch (error) {
       scriptOutput += `[Pre-Script Execution Error] ${error.toString()}\n`;

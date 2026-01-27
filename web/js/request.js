@@ -63,10 +63,18 @@ function applyTemplate(templateString, activeGroup = undefined) {
 async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptIds, postScriptIds, displayResponse, activeVariableGroup = 'global') {
   const startTime = Date.now();
 
-  // 0. Run pre-request scripts first
+  // 0. Prepare raw request data for pre-request scripts
+  const rawRequestData = {
+    method: method,
+    url: rawUrl,
+    headers: rawHeaders,
+    body: rawBody
+  };
+
+  // 0.1. Run pre-request scripts first (before templating)
   let scriptOutput = '';
   if (preScriptIds && (Array.isArray(preScriptIds) ? preScriptIds.length > 0 : preScriptIds)) {
-    scriptOutput = await executePreScript(preScriptIds);
+    scriptOutput = await executePreScript(preScriptIds, rawRequestData);
   }
 
   // 1. Apply templating (after pre-script has run and potentially updated variables)
@@ -81,7 +89,7 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptIds,
     }
   });
 
-  // Store request details for display
+  // Store request details for display (processed values)
   const requestDetails = {
     method: method,
     processedUrl: processedUrl,
@@ -118,8 +126,14 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptIds,
       responseData = await responseClone.text();
     }
     
-    // 4. Run post-request scripts
-    const postScriptOutput = await executePostScript(postScriptIds, response, responseData);
+    // 4. Run post-request scripts (with processed request data that was actually sent)
+    const processedRequestData = {
+      method: method,
+      url: processedUrl,
+      headers: headers,
+      body: processedBody
+    };
+    const postScriptOutput = await executePostScript(postScriptIds, response, responseData, processedRequestData);
     scriptOutput += postScriptOutput;
 
   } catch (error) {
