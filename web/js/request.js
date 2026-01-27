@@ -55,18 +55,18 @@ function applyTemplate(templateString, activeGroup = undefined) {
  * @param {string} method - The HTTP method (GET, POST, etc.).
  * @param {Array<Object>} rawHeaders - Array of {key, value} header objects.
  * @param {string} rawBody - The request body template string.
- * @param {string} preScriptId - The ID of the script to run before the request.
- * @param {string} postScriptId - The ID of the script to run after the request.
+ * @param {Array<string>|string} preScriptIds - Array of IDs or single ID (backward compat).
+ * @param {Array<string>|string} postScriptIds - Array of IDs or single ID (backward compat).
  * @param {function} displayResponse - UI function to update the response panel.
  * @param {string} activeVariableGroup - The active variable group for templating.
  */
-async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptId, postScriptId, displayResponse, activeVariableGroup = 'global') {
+async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptIds, postScriptIds, displayResponse, activeVariableGroup = 'global') {
   const startTime = Date.now();
 
-  // 0. Run pre-request script first
+  // 0. Run pre-request scripts first
   let scriptOutput = '';
-  if (preScriptId) {
-    scriptOutput = await executePreScript(preScriptId);
+  if (preScriptIds && (Array.isArray(preScriptIds) ? preScriptIds.length > 0 : preScriptIds)) {
+    scriptOutput = await executePreScript(preScriptIds);
   }
 
   // 1. Apply templating (after pre-script has run and potentially updated variables)
@@ -118,8 +118,8 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptId, 
       responseData = await responseClone.text();
     }
     
-    // 4. Run post-request script
-    const postScriptOutput = await executePostScript(postScriptId, response, responseData);
+    // 4. Run post-request scripts
+    const postScriptOutput = await executePostScript(postScriptIds, response, responseData);
     scriptOutput += postScriptOutput;
 
   } catch (error) {
