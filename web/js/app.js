@@ -63,8 +63,8 @@ const app = {
         method: 'GET',
         rawHeaders: [{ key: '', value: '' }],
         body: '',
-        preScriptId: '',
-        postScriptId: '',
+        preScriptIds: [], // Changed from single ID to array
+        postScriptIds: [], // Changed from single ID to array
         group: DEFAULT_GROUP
     },
     
@@ -549,7 +549,7 @@ const app = {
                     }
                     
                     // Handle pre-request scripts
-                    let preScriptId = '';
+                    const preScriptIds = [];
                     const preRequestEvent = item.event?.find(e => e.listen === 'prerequest');
                     if (preRequestEvent && preRequestEvent.script && preRequestEvent.script.exec) {
                         const preScriptCode = Array.isArray(preRequestEvent.script.exec) ? 
@@ -567,13 +567,13 @@ const app = {
                                 group: groupName
                             };
                             const savedPreScript = saveScript(preScript);
-                            preScriptId = savedPreScript.id;
+                            preScriptIds.push(savedPreScript.id);
                             summary.scriptsImported++;
                         }
                     }
                     
                     // Handle test/post-request scripts
-                    let postScriptId = '';
+                    const postScriptIds = [];
                     const testEvent = item.event?.find(e => e.listen === 'test');
                     if (testEvent && testEvent.script && testEvent.script.exec) {
                         const testScriptCode = Array.isArray(testEvent.script.exec) ? 
@@ -590,7 +590,7 @@ const app = {
                                 group: groupName
                             };
                             const savedPostScript = saveScript(postScript);
-                            postScriptId = savedPostScript.id;
+                            postScriptIds.push(savedPostScript.id);
                             summary.scriptsImported++;
                         }
                     }
@@ -605,8 +605,8 @@ const app = {
                         method: request.method || 'GET',
                         rawHeaders: headers.length > 0 ? [...headers, { key: '', value: '' }] : [{ key: '', value: '' }],
                         body: body,
-                        preScriptId: preScriptId,
-                        postScriptId: postScriptId,
+                        preScriptIds: preScriptIds,
+                        postScriptIds: postScriptIds,
                         group: groupName
                     };
                     
@@ -868,11 +868,14 @@ const app = {
         // Clear request ID, title, group, and scripts (this is a new request)
         app.currentRequest.id = null;
         app.currentRequest.group = app.activeGroups.requests; // Set to current active group
-        app.currentRequest.preScriptId = '';
-        app.currentRequest.postScriptId = '';
+        app.currentRequest.preScriptIds = [];
+        app.currentRequest.postScriptIds = [];
         app.elements.requestTitleInput.value = 'Imported from cURL';
         app.elements.preScriptSelect.value = '';
         app.elements.postScriptSelect.value = '';
+        
+        app.renderPreScriptsList();
+        app.renderPostScriptsList();
         
         // Switch to Request Builder tab if not already there
         app.switchMainTab('request');
@@ -933,12 +936,11 @@ const app = {
         requestTitleInput: document.getElementById('request-title-input'),
         
         // Scripting
-        scriptNameInput: document.getElementById('script-name-input'),
-        preScriptNameInput: document.getElementById('pre-script-name-input'),
         preScriptSelect: document.getElementById('pre-script-select'),
-        preScriptEditor: document.getElementById('pre-script-editor'),
         postScriptSelect: document.getElementById('post-script-select'),
-        postScriptEditor: document.getElementById('post-script-editor'),
+        preScriptsList: document.getElementById('pre-scripts-list'),
+        postScriptsList: document.getElementById('post-scripts-list'),
+        scriptSearchInput: document.getElementById('script-search-input'),
 
         // UI Lists
         variablesList: document.getElementById('variables-list'),
@@ -1021,6 +1023,147 @@ const app = {
         if (item) {
             item.querySelector('.variable-display').classList.remove('hidden');
             item.querySelector('.variable-edit').classList.add('hidden');
+        }
+    },
+    
+    // --- Script List Rendering ---
+    
+    renderPreScriptsList() {
+        const scripts = getAllScripts();
+        const selectedIds = app.currentRequest.preScriptIds || [];
+        
+        if (selectedIds.length === 0) {
+            app.elements.preScriptsList.innerHTML = '<p class="text-gray-400 text-xs italic">No pre-request scripts selected</p>';
+            return;
+        }
+        
+        app.elements.preScriptsList.innerHTML = selectedIds.map((id, index) => {
+            const script = scripts.find(s => s.id === id);
+            if (!script) return '';
+            return `
+                <div class="script-item flex items-center justify-between bg-white p-2 rounded border border-gray-200 hover:bg-gray-50 cursor-move" 
+                     data-script-id="${id}" data-index="${index}" draggable="true">
+                    <div class="flex items-center gap-2 flex-1">
+                        <span class="text-gray-400">⋮⋮</span>
+                        <span class="text-xs font-mono text-gray-500">${index + 1}.</span>
+                        <span class="text-sm font-medium">${script.name}</span>
+                        <span class="text-xs text-gray-500">(${script.group})</span>
+                    </div>
+                    <button class="remove-pre-script text-red-500 hover:text-red-700 text-sm px-2 py-1" 
+                            data-script-id="${id}" title="Remove script">✕</button>
+                </div>
+            `;
+        }).join('');
+        
+        // Attach drag-and-drop handlers
+        app.attachScriptDragHandlers('pre');
+    },
+    
+    renderPostScriptsList() {
+        const scripts = getAllScripts();
+        const selectedIds = app.currentRequest.postScriptIds || [];
+        
+        if (selectedIds.length === 0) {
+            app.elements.postScriptsList.innerHTML = '<p class="text-gray-400 text-xs italic">No post-request scripts selected</p>';
+            return;
+        }
+        
+        app.elements.postScriptsList.innerHTML = selectedIds.map((id, index) => {
+            const script = scripts.find(s => s.id === id);
+            if (!script) return '';
+            return `
+                <div class="script-item flex items-center justify-between bg-white p-2 rounded border border-gray-200 hover:bg-gray-50 cursor-move" 
+                     data-script-id="${id}" data-index="${index}" draggable="true">
+                    <div class="flex items-center gap-2 flex-1">
+                        <span class="text-gray-400">⋮⋮</span>
+                        <span class="text-xs font-mono text-gray-500">${index + 1}.</span>
+                        <span class="text-sm font-medium">${script.name}</span>
+                        <span class="text-xs text-gray-500">(${script.group})</span>
+                    </div>
+                    <button class="remove-post-script text-red-500 hover:text-red-700 text-sm px-2 py-1" 
+                            data-script-id="${id}" title="Remove script">✕</button>
+                </div>
+            `;
+        }).join('');
+        
+        // Attach drag-and-drop handlers
+        app.attachScriptDragHandlers('post');
+    },
+    
+    attachScriptDragHandlers(type) {
+        const container = type === 'pre' ? app.elements.preScriptsList : app.elements.postScriptsList;
+        const items = container.querySelectorAll('.script-item');
+        
+        let draggedItem = null;
+        
+        items.forEach(item => {
+            item.addEventListener('dragstart', (e) => {
+                draggedItem = item;
+                item.classList.add('opacity-50');
+            });
+            
+            item.addEventListener('dragend', (e) => {
+                item.classList.remove('opacity-50');
+            });
+            
+            item.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const afterElement = getDragAfterElement(container, e.clientY);
+                if (afterElement == null) {
+                    container.appendChild(draggedItem);
+                } else {
+                    container.insertBefore(draggedItem, afterElement);
+                }
+            });
+        });
+        
+        // Update array order after drag
+        container.addEventListener('dragend', () => {
+            const newOrder = Array.from(container.querySelectorAll('.script-item'))
+                .map(item => item.getAttribute('data-script-id'));
+            
+            if (type === 'pre') {
+                app.currentRequest.preScriptIds = newOrder;
+                app.renderPreScriptsList();
+            } else {
+                app.currentRequest.postScriptIds = newOrder;
+                app.renderPostScriptsList();
+            }
+        });
+        
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.script-item:not(.opacity-50)')];
+            
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+        
+        // Attach remove handlers
+        const removeButtons = container.querySelectorAll(type === 'pre' ? '.remove-pre-script' : '.remove-post-script');
+        removeButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const scriptId = btn.getAttribute('data-script-id');
+                app.removeScript(type, scriptId);
+            });
+        });
+    },
+    
+    removeScript(type, scriptId) {
+        if (type === 'pre') {
+            app.currentRequest.preScriptIds = app.currentRequest.preScriptIds.filter(id => id !== scriptId);
+            app.renderPreScriptsList();
+        } else {
+            app.currentRequest.postScriptIds = app.currentRequest.postScriptIds.filter(id => id !== scriptId);
+            app.renderPostScriptsList();
         }
     },
     
@@ -1232,7 +1375,7 @@ const app = {
         });
     },
 
-    renderCollections() {
+    renderCollections(scriptSearchTerm = '') {
         // Render Requests List (filtered by active group)
         const allRequests = getAllRequests();
         const activeRequestGroup = app.activeGroups.requests;
@@ -1250,10 +1393,16 @@ const app = {
             `).join('')
             : '<p class="text-gray-500 text-xs">No requests in this group.</p>';
 
-        // Render Scripts List and Select (filtered by active group)
+        // Render Scripts List and Select (filtered by active group and search term)
         const allScripts = getAllScripts();
         const activeScriptGroup = app.activeGroups.scripts;
-        const scripts = allScripts.filter(s => s.group === activeScriptGroup);
+        let scripts = allScripts.filter(s => s.group === activeScriptGroup);
+        
+        // Apply search filter if search term provided
+        if (scriptSearchTerm) {
+            const searchLower = scriptSearchTerm.toLowerCase();
+            scripts = scripts.filter(s => s.name.toLowerCase().includes(searchLower));
+        }
         
         app.elements.scriptsList.innerHTML = scripts.length > 0
             ? scripts.map(s => `
@@ -1264,31 +1413,16 @@ const app = {
                     <button data-delete-script="${s.id}" class="delete-script-btn text-red-500 hover:text-red-700 ml-2 text-xs px-2">X</button>
                 </div>
             `).join('')
-            : '<p class="text-gray-500 text-xs">No scripts in this group.</p>';
+            : (scriptSearchTerm 
+                ? '<p class="text-gray-500 text-xs">No scripts match your search.</p>'
+                : '<p class="text-gray-500 text-xs">No scripts in this group.</p>');
 
-        // Use ALL scripts for both pre and post dropdowns (not filtered by group or type)
-        const scriptOptions = allScripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.preScriptId || s.id === app.currentRequest.postScriptId ? 'selected' : ''}>${s.name} (${s.group})</option>`).join('');
+        // Use ALL scripts for both pre and post dropdowns (not filtered by group)
+        app.elements.preScriptSelect.innerHTML = '<option value="">-- Select a Pre-Script to Add --</option>' + 
+            allScripts.map(s => `<option value="${s.id}">${s.name} (${s.group})</option>`).join('');
         
-        app.elements.preScriptSelect.innerHTML = '<option value="">-- No Pre-Script Selected --</option>' + 
-            allScripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.preScriptId ? 'selected' : ''}>${s.name} (${s.group})</option>`).join('');
-        
-        app.elements.postScriptSelect.innerHTML = '<option value="">-- No Post-Script Selected --</option>' + 
-            allScripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.postScriptId ? 'selected' : ''}>${s.name} (${s.group})</option>`).join('');
-
-        // Update script editor fields based on currentScript
-        if (app.codeMirrorEditors.postScript) {
-            app.codeMirrorEditors.postScript.setValue(app.currentScript.code || '');
-        } else {
-            app.elements.postScriptEditor.value = app.currentScript.code;
-        }
-        app.elements.scriptNameInput.value = app.currentScript.name;
-        
-        if (app.codeMirrorEditors.preScript) {
-            app.codeMirrorEditors.preScript.setValue(app.currentPreScript.code || '');
-        } else {
-            app.elements.preScriptEditor.value = app.currentPreScript.code;
-        }
-        app.elements.preScriptNameInput.value = app.currentPreScript.name;
+        app.elements.postScriptSelect.innerHTML = '<option value="">-- Select a Post-Script to Add --</option>' + 
+            allScripts.map(s => `<option value="${s.id}">${s.name} (${s.group})</option>`).join('');
     },
     
     // --- Tab Switching Logic (same as original) ---
@@ -1349,37 +1483,25 @@ const app = {
     loadRequest(id) {
         const request = getAllRequests().find(r => r.id === id);
         if (request) {
+            // Migrate old format if needed
+            const preScriptIds = request.preScriptIds || (request.preScriptId ? [request.preScriptId] : []);
+            const postScriptIds = request.postScriptIds || (request.postScriptId ? [request.postScriptId] : []);
+            
             app.currentRequest = {
                 ...request, 
-                rawHeaders: request.rawHeaders || [{ key: '', value: '' }]
+                rawHeaders: request.rawHeaders || [{ key: '', value: '' }],
+                preScriptIds: preScriptIds,
+                postScriptIds: postScriptIds
             };
-            app.currentScript.id = request.postScriptId;
-            app.currentPreScript.id = request.preScriptId;
+            
             app.elements.urlInput.value = request.url;
             app.elements.methodSelect.value = request.method;
             app.setRequestBody(request.body);
             app.elements.requestTitleInput.value = request.title;
-            app.elements.postScriptSelect.value = request.postScriptId || '';
-            app.elements.preScriptSelect.value = request.preScriptId || '';
-            
-            const scripts = getAllScripts();
-            const postScript = scripts.find(s => s.id === request.postScriptId);
-            if (postScript) {
-                app.currentScript.name = postScript.name;
-                app.currentScript.code = postScript.code;
-            } else {
-                app.currentScript = { id: null, name: 'Untitled Script', code: '' };
-            }
-            
-            const preScript = scripts.find(s => s.id === request.preScriptId);
-            if (preScript) {
-                app.currentPreScript.name = preScript.name;
-                app.currentPreScript.code = preScript.code;
-            } else {
-                app.currentPreScript = { id: null, name: 'Untitled Pre-Script', code: '' };
-            }
 
             app.renderHeaders();
+            app.renderPreScriptsList();
+            app.renderPostScriptsList();
             app.renderCollections(); 
             app.switchMainTab('request'); 
         }
@@ -1389,10 +1511,7 @@ const app = {
         const script = getAllScripts().find(s => s.id === id);
         if (script) {
             app.currentScript = script;
-            app.elements.postScriptEditor.value = script.code;
-            app.elements.scriptNameInput.value = script.name;
-            app.currentRequest.postScriptId = script.id; 
-            app.elements.postScriptSelect.value = script.id;
+            // Note: Script editors removed from request builder, scripts are now managed via Scripts tab
         }
     },
     
@@ -1521,14 +1640,12 @@ const app = {
             let scripts = getAllScripts().filter(s => s.id !== id);
             saveCollection(STORAGE_KEYS.SCRIPTS, scripts);
             app.renderCollections();
-            if (app.currentRequest.postScriptId === id) {
-                app.currentRequest.postScriptId = '';
-                app.elements.postScriptSelect.value = '';
-            }
-            if (app.currentRequest.preScriptId === id) {
-                app.currentRequest.preScriptId = '';
-                app.elements.preScriptSelect.value = '';
-            }
+            
+            // Remove from current request's script arrays
+            app.currentRequest.postScriptIds = app.currentRequest.postScriptIds.filter(sid => sid !== id);
+            app.currentRequest.preScriptIds = app.currentRequest.preScriptIds.filter(sid => sid !== id);
+            app.renderPreScriptsList();
+            app.renderPostScriptsList();
         });
     },
 
@@ -1600,8 +1717,8 @@ const app = {
             method: app.elements.methodSelect.value,
             rawHeaders: app.currentRequest.rawHeaders.filter(h => h.key), 
             body: app.getRequestBody(),
-            preScriptId: app.elements.preScriptSelect.value,
-            postScriptId: app.elements.postScriptSelect.value,
+            preScriptIds: app.currentRequest.preScriptIds || [],
+            postScriptIds: app.currentRequest.postScriptIds || [],
             group: group
         };
         
@@ -1636,8 +1753,8 @@ const app = {
             method: 'GET',
             rawHeaders: [{ key: '', value: '' }],
             body: '',
-            preScriptId: '',
-            postScriptId: '',
+            preScriptIds: [],
+            postScriptIds: [],
             group: app.activeGroups.requests  // Use active group
         };
         
@@ -1649,6 +1766,8 @@ const app = {
         app.elements.postScriptSelect.value = '';
         
         app.renderHeaders();
+        app.renderPreScriptsList();
+        app.renderPostScriptsList();
         app.switchMainTab('request');
     },
 
@@ -1667,7 +1786,6 @@ const app = {
 
         const savedScript = saveScript(scriptToSave);
         app.currentScript = savedScript; // Update entire current script object
-        app.currentRequest.postScriptId = savedScript.id;
         
         alert(`Script saved as: ${savedScript.name} (Group: ${savedScript.group})`);
         app.renderCollections();
@@ -1678,8 +1796,8 @@ const app = {
 
     handleSend() {
         const rawHeaders = app.currentRequest.rawHeaders.filter(h => h.key || h.value);
-        const preScriptId = app.elements.preScriptSelect.value;
-        const postScriptId = app.elements.postScriptSelect.value;
+        const preScriptIds = app.currentRequest.preScriptIds || [];
+        const postScriptIds = app.currentRequest.postScriptIds || [];
         
         const responseBodyCode = document.getElementById('response-body-code');
         if (responseBodyCode) responseBodyCode.textContent = 'Sending request...';
@@ -1696,8 +1814,8 @@ const app = {
             app.elements.methodSelect.value,
             rawHeaders,
             app.getRequestBody(),
-            preScriptId,
-            postScriptId,
+            preScriptIds,
+            postScriptIds,
             app.displayResponse, // Pass the UI function to the request module
             app.activeGroups.variables // Pass active variable group for templating
         );
@@ -1783,6 +1901,23 @@ const app = {
         reader.onload = (e) => {
             try {
                 const importedData = JSON.parse(e.target.result);
+                
+                // Migrate old format if needed
+                if (importedData.requests) {
+                    importedData.requests = importedData.requests.map(req => {
+                        const migrated = { ...req };
+                        if (req.preScriptId !== undefined && !req.preScriptIds) {
+                            migrated.preScriptIds = req.preScriptId ? [req.preScriptId] : [];
+                            delete migrated.preScriptId;
+                        }
+                        if (req.postScriptId !== undefined && !req.postScriptIds) {
+                            migrated.postScriptIds = req.postScriptId ? [req.postScriptId] : [];
+                            delete migrated.postScriptId;
+                        }
+                        return migrated;
+                    });
+                }
+                
                 if (importedData.variables) {
                     // Update the variable store via the specialized function
                     Object.assign(variableStore, importedData.variables);
@@ -1806,10 +1941,38 @@ const app = {
         reader.readAsText(file);
     },
 
+    // --- Migration ---
+    
+    migrateOldRequests() {
+        const requests = getAllRequests();
+        let migrated = false;
+        
+        requests.forEach(req => {
+            if (req.preScriptId !== undefined && !req.preScriptIds) {
+                req.preScriptIds = req.preScriptId ? [req.preScriptId] : [];
+                delete req.preScriptId;
+                migrated = true;
+            }
+            if (req.postScriptId !== undefined && !req.postScriptIds) {
+                req.postScriptIds = req.postScriptId ? [req.postScriptId] : [];
+                delete req.postScriptId;
+                migrated = true;
+            }
+        });
+        
+        if (migrated) {
+            saveCollection(STORAGE_KEYS.REQUESTS, requests);
+            console.log('[Migration] Migrated old requests to new script array format');
+        }
+    },
+    
     // --- Initialization ---
 
     init() {
         console.log('App initializing...');
+        
+        // Run migration for old data format
+        app.migrateOldRequests();
         
         // Load active groups from storage
         const savedActiveGroups = getActiveGroups();
@@ -1838,36 +2001,8 @@ const app = {
         console.log('new-request-group-btn exists:', !!document.getElementById('new-request-group-btn'));
         console.log('new-script-group-btn exists:', !!document.getElementById('new-script-group-btn'));
 
-        // Initialize CodeMirror editors
-        app.codeMirrorEditors.preScript = CodeMirror.fromTextArea(
-            app.elements.preScriptEditor,
-            {
-                mode: 'javascript',
-                theme: 'dracula',
-                lineNumbers: true,
-                matchBrackets: true,
-                autoCloseBrackets: true,
-                styleActiveLine: true,
-                indentUnit: 2,
-                tabSize: 2,
-                lineWrapping: true
-            }
-        );
-
-        app.codeMirrorEditors.postScript = CodeMirror.fromTextArea(
-            app.elements.postScriptEditor,
-            {
-                mode: 'javascript',
-                theme: 'dracula',
-                lineNumbers: true,
-                matchBrackets: true,
-                autoCloseBrackets: true,
-                styleActiveLine: true,
-                indentUnit: 2,
-                tabSize: 2,
-                lineWrapping: true
-            }
-        );
+        // Note: Script editors removed from request builder
+        // Scripts are now edited in the Scripts tab via modal/dialog
 
         // Attach event listeners
         document.getElementById('send-btn').onclick = app.handleSend;
@@ -1908,7 +2043,33 @@ const app = {
         document.getElementById('curl-btn').onclick = app.showCurlDialog;
         document.getElementById('new-request-btn').onclick = app.newRequest;
         document.getElementById('save-request-btn').onclick = app.saveAsNewRequest;
-        document.getElementById('save-script-btn').onclick = app.saveCurrentScript;
+        
+        // Script add buttons
+        document.getElementById('add-pre-script-btn').onclick = () => {
+            const selectedId = app.elements.preScriptSelect.value;
+            if (selectedId && !app.currentRequest.preScriptIds.includes(selectedId)) {
+                app.currentRequest.preScriptIds.push(selectedId);
+                app.renderPreScriptsList();
+                app.elements.preScriptSelect.value = ''; // Reset selector
+            } else if (!selectedId) {
+                alert('Please select a script to add');
+            } else {
+                alert('This script is already added');
+            }
+        };
+        
+        document.getElementById('add-post-script-btn').onclick = () => {
+            const selectedId = app.elements.postScriptSelect.value;
+            if (selectedId && !app.currentRequest.postScriptIds.includes(selectedId)) {
+                app.currentRequest.postScriptIds.push(selectedId);
+                app.renderPostScriptsList();
+                app.elements.postScriptSelect.value = ''; // Reset selector
+            } else if (!selectedId) {
+                alert('Please select a script to add');
+            } else {
+                alert('This script is already added');
+            }
+        };
         
         // Initialize JSON Editor for response (read-only)
         const jsonEditorContainer = document.getElementById('json-editor-container');
@@ -1973,56 +2134,13 @@ const app = {
                 alert('Variable key cannot be empty.');
             }
         };
-        document.getElementById('pre-script-select').onchange = (e) => {
-            const selectedId = e.target.value;
-            app.currentRequest.preScriptId = selectedId;
-            
-            const scripts = getAllScripts();
-            const script = scripts.find(s => s.id === selectedId);
-            if (script) {
-                app.currentPreScript = script;
-            } else {
-                app.currentPreScript = { id: null, name: 'Untitled Pre-Script', code: '' };
-            }
-            app.renderCollections();
-        };
         
-        document.getElementById('post-script-select').onchange = (e) => {
-            const selectedId = e.target.value;
-            app.currentRequest.postScriptId = selectedId;
-            
-            const scripts = getAllScripts();
-            const script = scripts.find(s => s.id === selectedId);
-            if (script) {
-                app.currentScript = script;
-            } else {
-                app.currentScript = { id: null, name: 'Untitled Script', code: '' };
-            }
-            app.renderCollections();
-        };
-        
-        document.getElementById('save-pre-script-btn').onclick = () => {
-            const scriptName = app.elements.preScriptNameInput.value || 'Untitled Pre-Script';
-            const scriptCode = app.codeMirrorEditors.preScript 
-                ? app.codeMirrorEditors.preScript.getValue() 
-                : app.elements.preScriptEditor.value;
-
-            const scriptToSave = {
-                id: app.currentPreScript.id,
-                name: scriptName,
-                code: scriptCode,
-                type: 'pre-request',
-                group: app.activeGroups.scripts  // Save to active group
-            };
-
-            const savedScript = saveScript(scriptToSave);
-            app.currentPreScript = savedScript; // Update entire current pre-script object
-            app.currentRequest.preScriptId = savedScript.id;
-            
-            alert(`Pre-request script saved as: ${savedScript.name} (Group: ${savedScript.group})`);
-            app.renderCollections();
-            app.renderGroupSelectors();
-        };
+        // Script search handler
+        app.elements.scriptSearchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value;
+            app.renderCollections(searchTerm);
+        });
+        // Note: Pre/post script selectors are now just for adding to the list, no longer for editing
 
         // Event delegation for dynamically rendered delete and load buttons
         const variablesList = document.getElementById('variables-list');
