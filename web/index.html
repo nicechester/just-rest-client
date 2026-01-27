@@ -180,6 +180,13 @@
                 <div id="main-panel-request" data-panel="request" class="main-panel bg-white p-6 rounded-xl shadow-lg border border-gray-200 space-y-4">
                     <h2 class="text-xl font-semibold text-gray-700">Request Builder</h2>
                     
+                    <!-- Save Request -->
+                    <div class="flex space-x-2 pb-4 border-b">
+                        <input type="text" id="request-title-input" placeholder="Request Title (e.g., Get Auth Token)" class="flex-1 p-3 border rounded-lg text-sm focus:ring-green-500 focus:border-green-500">
+                        <button id="new-request-btn" class="bg-gray-500 text-white p-3 rounded-lg hover:bg-gray-600 transition duration-150 min-w-[100px]">New</button>
+                        <button id="save-request-btn" class="bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 transition duration-150 min-w-[100px]">Save</button>
+                    </div>
+                    
                     <div class="space-y-2">
                         <div class="flex space-x-2">
                             <select id="method-select" class="w-32 p-3 border rounded-lg bg-gray-100 text-sm font-semibold focus:ring-blue-500 focus:border-blue-500">
@@ -251,13 +258,6 @@
                             <textarea id="post-script-editor" rows="5" placeholder="Use setVar('newKey', responseData.token);" class="w-full p-3 border rounded-lg text-sm code-input focus:ring-purple-500 focus:border-purple-500 font-mono"></textarea>
                             <div class="resize-handle" data-target="post-script-editor"></div>
                         </div>
-                    </div>
-
-                    <!-- Save Request -->
-                    <div class="border-t pt-4 flex space-x-2">
-                        <input type="text" id="request-title-input" placeholder="Request Title (e.g., Get Auth Token)" class="flex-1 p-3 border rounded-lg text-sm focus:ring-green-500 focus:border-green-500">
-                        <button id="new-request-btn" class="bg-gray-500 text-white p-3 rounded-lg hover:bg-gray-600 transition duration-150 min-w-[100px]">New</button>
-                        <button id="save-request-btn" class="bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 transition duration-150 min-w-[100px]">Save</button>
                     </div>
                 </div>
 
