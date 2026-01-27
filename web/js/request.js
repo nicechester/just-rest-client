@@ -8,17 +8,25 @@
 import { getFlattenedVariables } from './variable.js'; // Import function to get flattened variables for templating
 import { executePostScript, executePreScript } from './scripting.js'; // Import the script execution engine
 
-// Import Tauri HTTP plugin (will only work in Tauri app)
+// Import Tauri HTTP plugin - this will be tree-shaken out in browser builds
+import * as tauriHttp from '@tauri-apps/plugin-http';
+
+// Check if we're in Tauri environment
 let tauriFetch = null;
 let isTauri = false;
 
-try {
-  // Dynamically import Tauri HTTP plugin if available
-  const httpModule = await import('@tauri-apps/plugin-http');
-  tauriFetch = httpModule.fetch;
-  isTauri = true;
-} catch (e) {
-  // Not in Tauri or plugin not available, use browser fetch
+// Detect Tauri environment
+if (typeof window !== 'undefined' && window.__TAURI__) {
+  try {
+    tauriFetch = tauriHttp.fetch;
+    isTauri = true;
+    console.log('[Tauri] HTTP plugin loaded successfully');
+  } catch (e) {
+    console.warn('[Tauri] HTTP plugin available but failed to load:', e);
+    isTauri = false;
+  }
+} else {
+  console.log('[Browser] Using browser fetch (not in Tauri environment)');
   isTauri = false;
 }
 
