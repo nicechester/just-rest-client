@@ -42,14 +42,16 @@ If you need to create a release manually:
 
 Each release includes binaries for all platforms:
 
-| Platform | File Pattern | Size |
-|----------|--------------|------|
-| **macOS (Apple Silicon)** | `Just-REST-Client-v*-macos-aarch64.dmg` | ~7 MB |
-| **macOS (Intel)** | `Just-REST-Client-v*-macos-x64.dmg` | ~7 MB |
-| **Windows (MSI)** | `Just-REST-Client-v*-windows.msi` | ~5 MB |
-| **Windows (EXE)** | `Just-REST-Client-v*-windows.exe` | ~5 MB |
-| **Linux (AppImage)** | `Just-REST-Client-v*-linux.AppImage` | ~10 MB |
-| **Linux (Deb)** | `Just-REST-Client-v*-linux.deb` | ~5 MB |
+| Platform | File Pattern | Size | Description |
+|----------|--------------|------|-------------|
+| **macOS (Apple Silicon)** | `Just.REST.Client_VERSION_aarch64.dmg` | ~7 MB | For M1/M2/M3/M4 Macs |
+| **macOS (Intel)** | `Just.REST.Client_VERSION_x64.dmg` | ~7 MB | For Intel Macs |
+| **Windows (MSI)** | `Just.REST.Client_VERSION_x64_en-US.msi` | ~6 MB | Windows Installer |
+| **Windows (EXE)** | `Just.REST.Client_VERSION_x64-setup.exe` | ~4 MB | Portable executable |
+| **Linux (AppImage)** | `Just.REST.Client_VERSION_amd64.AppImage` | ~76 MB | Universal binary |
+| **Linux (Deb)** | `Just.REST.Client_VERSION_amd64.deb` | ~7 MB | Debian/Ubuntu package |
+
+Note: `VERSION` will be something like `0.1.0` or `1.0.0` depending on your release tag.
 
 ## 🏷️ Version Naming Convention
 

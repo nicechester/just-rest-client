@@ -18,12 +18,21 @@ You can access the live version of the application here:
 
 Download the latest version for your platform from the [Releases page](https://github.com/nicechester/just-rest-client/releases):
 
-| Platform | File | Notes |
-|----------|------|-------|
-| **macOS** (Apple Silicon) | `Just-REST-Client-*-macos-aarch64.dmg` | For M1/M2/M3 Macs |
-| **macOS** (Intel) | `Just-REST-Client-*-macos-x64.dmg` | For Intel Macs |
-| **Windows** | `Just-REST-Client-*-windows.msi` | Windows Installer |
-| **Linux** | `Just-REST-Client-*-linux.AppImage` | Universal Linux binary |
+| Platform | File | Size | Notes |
+|----------|------|------|-------|
+| **macOS** | `Just.REST.Client_*_aarch64.dmg` | ~7 MB | Apple Silicon (M1/M2/M3/M4) |
+| **Windows** (Installer) | `Just.REST.Client_*_x64_en-US.msi` | ~6 MB | MSI Installer |
+| **Windows** (Portable) | `Just.REST.Client_*_x64-setup.exe` | ~4 MB | Standalone executable |
+| **Linux** (Universal) | `Just.REST.Client_*_amd64.AppImage` | ~76 MB | Works on all distros |
+| **Linux** (Debian/Ubuntu) | `Just.REST.Client_*_amd64.deb` | ~7 MB | For Debian/Ubuntu |
+
+> **Note for Intel Mac users**: The current release is built for Apple Silicon only. Intel Mac users can [build from source](#build-from-source) or request an Intel build in the [Issues](https://github.com/nicechester/just-rest-client/issues).
+
+**Installation:**
+- **macOS**: Download `.dmg`, open it, drag app to Applications folder (Apple Silicon only)
+- **Windows**: Download `.msi` and run installer, or use `.exe` for portable version
+- **Linux (AppImage)**: Download, make executable (`chmod +x`), and run
+- **Linux (Deb)**: Download and install with `sudo dpkg -i Just.REST.Client_*.deb`
 
 #### Build from Source
 
