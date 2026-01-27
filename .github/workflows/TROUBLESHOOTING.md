@@ -7,10 +7,19 @@
 **Problem:** Tauri CLI doesn't recognize the CI environment variable format.
 
 **Fix Applied:**
-- Changed build command to use `cargo tauri build` directly
-- Added explicit environment variables to disable signing
+- Added `@tauri-apps/cli` as a devDependency
+- Set `CI: false` in workflow environment variables
+- Use npm-based Tauri CLI instead of cargo directly
 
-### Issue 2: Artifact Upload Failures
+### Issue 2: Linux Build - `Unable to locate package libwebkit2gtk-4.0-dev`
+
+**Problem:** Ubuntu 22.04+ replaced `libwebkit2gtk-4.0-dev` with `libwebkit2gtk-4.1-dev`.
+
+**Fix Applied:**
+- Updated to use `libwebkit2gtk-4.1-dev`
+- Added `libayatana-appindicator3-dev` as a fallback for system tray support
+
+### Issue 3: Artifact Upload Failures
 
 **Problem:** Artifact paths might not match exactly due to version numbers in filenames.
 
@@ -19,7 +28,7 @@
 - Added `if-no-files-found: warn` to prevent hard failures
 - Added debug step to list all build artifacts
 
-### Issue 3: Rust Compilation Speed
+### Issue 4: Rust Compilation Speed
 
 **Fix Applied:**
 - Added Rust caching with `swatinem/rust-cache@v2`
