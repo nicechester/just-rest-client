@@ -127,19 +127,32 @@ function saveRequest(requestObject) {
   const group = requestObject.group || DEFAULT_GROUP;
   const title = requestObject.title || 'Untitled Request';
   
-  // Check if a request with same title in same group exists
-  const existingIndex = requests.findIndex(r => 
-    r.title === title && (r.group || DEFAULT_GROUP) === group
-  );
-
-  if (existingIndex !== -1) {
-    // Update existing request, preserve its ID
-    requestObject.id = requests[existingIndex].id;
-    requests[existingIndex] = requestObject;
+  // If ID is provided (e.g., during import), use it directly
+  if (requestObject.id) {
+    // Check if this ID already exists
+    const existingIndex = requests.findIndex(r => r.id === requestObject.id);
+    if (existingIndex !== -1) {
+      // Update existing request with same ID
+      requests[existingIndex] = requestObject;
+    } else {
+      // Add new request with provided ID
+      requests.push(requestObject);
+    }
   } else {
-    // Create new request - always generate a new ID
-    requestObject.id = `req-${Date.now()}`;
-    requests.push(requestObject);
+    // No ID provided - check if a request with same title in same group exists (deduplication for manual saves)
+    const existingIndex = requests.findIndex(r => 
+      r.title === title && (r.group || DEFAULT_GROUP) === group
+    );
+
+    if (existingIndex !== -1) {
+      // Update existing request, preserve its ID
+      requestObject.id = requests[existingIndex].id;
+      requests[existingIndex] = requestObject;
+    } else {
+      // Create new request - generate a new ID
+      requestObject.id = `req-${Date.now()}`;
+      requests.push(requestObject);
+    }
   }
 
   saveCollection(STORAGE_KEYS.REQUESTS, requests);
@@ -171,19 +184,32 @@ function saveScript(scriptObject) {
   const group = scriptObject.group || DEFAULT_GROUP;
   const name = scriptObject.name || 'Untitled Script';
   
-  // Check if a script with same name in same group exists
-  const existingIndex = scripts.findIndex(s => 
-    s.name === name && (s.group || DEFAULT_GROUP) === group
-  );
-
-  if (existingIndex !== -1) {
-    // Update existing script, preserve its ID
-    scriptObject.id = scripts[existingIndex].id;
-    scripts[existingIndex] = scriptObject;
+  // If ID is provided (e.g., during import), use it directly
+  if (scriptObject.id) {
+    // Check if this ID already exists
+    const existingIndex = scripts.findIndex(s => s.id === scriptObject.id);
+    if (existingIndex !== -1) {
+      // Update existing script with same ID
+      scripts[existingIndex] = scriptObject;
+    } else {
+      // Add new script with provided ID
+      scripts.push(scriptObject);
+    }
   } else {
-    // Create new script - always generate a new ID
-    scriptObject.id = `script-${Date.now()}`;
-    scripts.push(scriptObject);
+    // No ID provided - check if a script with same name in same group exists (deduplication for manual saves)
+    const existingIndex = scripts.findIndex(s => 
+      s.name === name && (s.group || DEFAULT_GROUP) === group
+    );
+
+    if (existingIndex !== -1) {
+      // Update existing script, preserve its ID
+      scriptObject.id = scripts[existingIndex].id;
+      scripts[existingIndex] = scriptObject;
+    } else {
+      // Create new script - generate a new ID
+      scriptObject.id = `script-${Date.now()}`;
+      scripts.push(scriptObject);
+    }
   }
 
   saveCollection(STORAGE_KEYS.SCRIPTS, scripts);
@@ -405,5 +431,7 @@ export {
   getActiveGroups,
   setActiveGroup,
   getAllGroups,
-  addGroupName
+  addGroupName,
+  loadGroupNames,
+  saveGroupNames
 };

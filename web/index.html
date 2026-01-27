@@ -57,7 +57,13 @@
                         <select id="variables-group-select" class="flex-1 p-2 border rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500">
                             <option value="global">global</option>
                         </select>
-                        <button id="new-var-group-btn" class="bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 transition text-xs" title="Create new group">+ Group</button>
+                        <div class="relative inline-flex">
+                            <button id="new-var-group-btn" class="bg-gray-600 text-white px-3 py-2 rounded-l-lg hover:bg-gray-700 transition text-xs" title="Create new group">+ Group</button>
+                            <button id="var-group-menu-btn" class="bg-gray-600 text-white px-2 py-2 rounded-r-lg hover:bg-gray-700 transition text-xs border-l border-gray-500" title="Group actions">▾</button>
+                            <div id="var-group-menu" class="hidden absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                                <button id="delete-var-group-btn" class="w-full text-left px-4 py-2 text-xs hover:bg-red-50 text-red-600 rounded-lg transition">Delete Group</button>
+                            </div>
+                        </div>
                     </div>
                     
                     <div id="variables-list" class="space-y-2 text-sm max-h-96 overflow-y-auto">
@@ -80,7 +86,13 @@
                         <select id="requests-group-select" class="flex-1 p-2 border rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500">
                             <option value="global">global</option>
                         </select>
-                        <button id="new-request-group-btn" class="bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 transition text-xs" title="Create new group">+ Group</button>
+                        <div class="relative inline-flex">
+                            <button id="new-request-group-btn" class="bg-gray-600 text-white px-3 py-2 rounded-l-lg hover:bg-gray-700 transition text-xs" title="Create new group">+ Group</button>
+                            <button id="request-group-menu-btn" class="bg-gray-600 text-white px-2 py-2 rounded-r-lg hover:bg-gray-700 transition text-xs border-l border-gray-500" title="Group actions">▾</button>
+                            <div id="request-group-menu" class="hidden absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                                <button id="delete-request-group-btn" class="w-full text-left px-4 py-2 text-xs hover:bg-red-50 text-red-600 rounded-lg transition">Delete Group</button>
+                            </div>
+                        </div>
                     </div>
                     
                     <div id="requests-list" class="space-y-2 text-sm max-h-64 overflow-y-auto">
@@ -99,12 +111,23 @@
                         <select id="scripts-group-select" class="flex-1 p-2 border rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500">
                             <option value="global">global</option>
                         </select>
-                        <button id="new-script-group-btn" class="bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 transition text-xs" title="Create new group">+ Group</button>
+                        <div class="relative inline-flex">
+                            <button id="new-script-group-btn" class="bg-gray-600 text-white px-3 py-2 rounded-l-lg hover:bg-gray-700 transition text-xs" title="Create new group">+ Group</button>
+                            <button id="script-group-menu-btn" class="bg-gray-600 text-white px-2 py-2 rounded-r-lg hover:bg-gray-700 transition text-xs border-l border-gray-500" title="Group actions">▾</button>
+                            <div id="script-group-menu" class="hidden absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                                <button id="delete-script-group-btn" class="w-full text-left px-4 py-2 text-xs hover:bg-red-50 text-red-600 rounded-lg transition">Delete Group</button>
+                            </div>
+                        </div>
                     </div>
                     
                     <div id="scripts-list" class="space-y-2 text-sm max-h-64 overflow-y-auto">
                         <!-- Saved scripts will be loaded here -->
                         <p class="text-gray-500">No scripts saved.</p>
+                    </div>
+                    
+                    <!-- Add New Script -->
+                    <div class="mt-4 pt-4 border-t">
+                        <button id="add-script-btn" class="w-full bg-purple-600 text-white p-2 rounded-lg hover:bg-purple-700 transition duration-150 text-sm font-medium">+ Add New Script</button>
                     </div>
                 </div>
             </div>
@@ -360,6 +383,44 @@
         </div>
     </div>
 
+    <!-- Script Editor Dialog -->
+    <div id="script-editor-dialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 shadow-xl" style="max-height: 90vh; overflow-y: auto;">
+            <h3 class="text-lg font-semibold mb-4">Script Editor</h3>
+            
+            <!-- Script Name -->
+            <div class="mb-4">
+                <label class="text-xs font-medium text-gray-600 block mb-1">Script Name</label>
+                <input type="text" id="script-editor-name" placeholder="My Script" class="w-full p-2 border rounded-lg text-sm focus:ring-purple-500 focus:border-purple-500">
+            </div>
+            
+            <!-- Script Code Editor -->
+            <div class="mb-4">
+                <label class="text-xs font-medium text-gray-600 block mb-1">Script Code</label>
+                <textarea id="script-editor-code" class="w-full p-3 border rounded-lg text-sm font-mono focus:ring-purple-500 focus:border-purple-500 resize-vertical" rows="15" placeholder="// Write your script here
+// Available functions:
+// - getVariable(key) - Get variable value
+// - setVariable(key, value) - Set variable value  
+// - http(url, options) - Make HTTP request
+// - log(...args) - Log messages
+// 
+// For post-request scripts, you also have:
+// - response - The response object
+// - data - The parsed response body"></textarea>
+            </div>
+            
+            <div class="flex justify-between items-center">
+                <div class="text-xs text-gray-500">
+                    <button id="view-scripting-docs-btn" class="text-purple-600 hover:underline cursor-pointer">View Scripting Documentation</button>
+                </div>
+                <div class="flex space-x-2">
+                    <button id="script-editor-cancel" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">Cancel</button>
+                    <button id="script-editor-save" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition">Save Script</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- About Dialog / Splash Screen -->
     <div id="about-dialog" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
         <div class="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-8 max-w-md mx-4 shadow-2xl border-2 border-blue-200 text-center transform transition-all">
@@ -370,12 +431,12 @@
             <p class="text-gray-600 text-sm mb-1">A simple and powerful REST API testing tool</p>
             <p class="text-gray-500 text-xs mb-4">Version 1.0.0</p>
             
-            <a href="https://github.com/nicechester/just-rest-client" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-medium mb-6 transition duration-150">
+            <button id="github-link-btn" class="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-medium mb-6 transition duration-150 cursor-pointer">
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/>
                 </svg>
                 View on GitHub
-            </a>
+            </button>
             
             <div class="border-t border-blue-300 pt-4 mb-6">
                 <p class="text-gray-700 font-medium mb-1">Created by</p>

@@ -18,6 +18,10 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: './web/index.html'
+      },
+      external: (id) => {
+        // Externalize Tauri plugins - they're only available at runtime in Tauri context
+        return id.startsWith('@tauri-apps/');
       }
     }
   },
