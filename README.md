@@ -14,11 +14,18 @@ You can access the live version of the application here:
 
 ### Desktop App (Tauri)
 
-#### Download
+#### Download Pre-Built Binaries
 
-Download MacOS binary at https://github.com/nicechester/just-rest-client/blob/main/downloads/just_rest_client_0.1.0_aarch64.dmg 
+Download the latest version for your platform from the [Releases page](https://github.com/nicechester/just-rest-client/releases):
 
-#### Build from source codes
+| Platform | File | Notes |
+|----------|------|-------|
+| **macOS** (Apple Silicon) | `Just-REST-Client-*-macos-aarch64.dmg` | For M1/M2/M3 Macs |
+| **macOS** (Intel) | `Just-REST-Client-*-macos-x64.dmg` | For Intel Macs |
+| **Windows** | `Just-REST-Client-*-windows.msi` | Windows Installer |
+| **Linux** | `Just-REST-Client-*-linux.AppImage` | Universal Linux binary |
+
+#### Build from Source
 
 Run as a native desktop application with **no CORS restrictions**:
 

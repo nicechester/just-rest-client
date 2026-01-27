@@ -6,6 +6,15 @@ dist/
 node_modules/
 .vite/
 
+# Binaries (use GitHub Releases instead)
+downloads/
+*.dmg
+*.msi
+*.exe
+*.deb
+*.rpm
+*.AppImage
+
 # Logs
 *.log
 
