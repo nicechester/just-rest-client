@@ -21,6 +21,14 @@
 - Updated to use `libwebkit2gtk-4.1-dev` (newer WebKit)
 - Use `libayatana-appindicator3-dev` only (Ayatana is the modern fork, replaces the old libappindicator)
 
+### Issue 3: AppImage - "couldn't find a square icon to use"
+
+**Problem:** The icons listed in `tauri.conf.json` were not actually square (they were 669x413).
+
+**Fix Applied:**
+- Use the `Square*Logo.png` icons which are properly square
+- Include multiple sizes from 30x30 to 310x310 for different platforms
+
 ### Issue 3: Artifact Upload Failures
 
 **Problem:** Artifact paths might not match exactly due to version numbers in filenames.
