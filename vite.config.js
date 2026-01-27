@@ -18,17 +18,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: './web/index.html'
-      },
-      external: (id) => {
-        // Externalize Tauri plugins - they're only available at runtime in Tauri context
-        return id.startsWith('@tauri-apps/');
       }
     }
-  },
-
-  // Ensure proper handling of ES modules
-  optimizeDeps: {
-    include: ['@tauri-apps/plugin-http']
   },
 
   // Clear the screen on dev server start
