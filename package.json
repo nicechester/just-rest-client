@@ -9,7 +9,11 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "npm run build && tauri build"
+    "tauri:build": "npm run build && tauri build",
+    "clean": "npm run clean:frontend && npm run clean:rust",
+    "clean:frontend": "rm -rf dist",
+    "clean:rust": "cd src-tauri && cargo clean",
+    "clean:all": "npm run clean && rm -rf node_modules"
   },
   "keywords": [
     "rest",
