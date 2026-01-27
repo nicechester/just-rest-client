@@ -3,7 +3,7 @@ name: Release Just REST Client
 on:
   push:
     tags:
-      - 'v*'  # Trigger on version tags like v1.0.0
+      - '[0-9]*.[0-9]*.[0-9]*'  # Trigger on version tags like 1.10.0
 
 permissions:
   contents: write
