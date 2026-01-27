@@ -24,7 +24,9 @@ import {
     getActiveGroups,
     setActiveGroup,
     getAllGroups,
-    addGroupName
+    addGroupName,
+    loadGroupNames,
+    saveGroupNames
 } from './storage.js';
 
 import { 
@@ -408,6 +410,315 @@ const app = {
     },
     
     /**
+     * Parse and import a Postman collection
+     * @param {object} postmanCollection - The Postman collection JSON object
+     * @returns {object} Import summary {variablesImported, requestsImported, scriptsImported}
+     */
+    /**
+     * Transforms Postman script syntax to Just REST Client syntax.
+     * @param {string} code - The original Postman script code
+     * @return {string} Transformed script code
+     */
+    transformPostmanScript(code) {
+        if (!code) return code;
+        
+        let transformed = code;
+        
+        // 1. Replace pm.response.json() with responseData
+        transformed = transformed.replace(/pm\.response\.json\(\)/g, 'responseData');
+        
+        // 2. Replace pm.environment.set and pm.collectionVariables.set with setVar
+        transformed = transformed.replace(/pm\.(environment|collectionVariables|variables)\.set\(/g, 'setVar(');
+        
+        // 3. Replace pm.environment.get and pm.collectionVariables.get with getVar
+        transformed = transformed.replace(/pm\.(environment|collectionVariables|variables)\.get\(/g, 'getVar(');
+        
+        // 4. Transform pm.sendRequest callback pattern to await http
+        // Pattern: pm.sendRequest(url, function(err, response) { ... })
+        // Replace with: const response = await http(url); // Manual: Convert callback body
+        const sendRequestPattern = /pm\.sendRequest\(\s*([^,]+),\s*function\s*\(\s*(?:err\s*,\s*)?response\s*\)\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}\s*\)/gs;
+        
+        transformed = transformed.replace(sendRequestPattern, (match, url, callbackBody) => {
+            // Transform the callback body
+            let transformedBody = callbackBody;
+            
+            // Replace response.json() with response.data (already parsed in Just REST Client)
+            transformedBody = transformedBody.replace(/response\.json\(\)/g, 'response.data');
+            
+            // Replace pm.environment.set in callback body
+            transformedBody = transformedBody.replace(/pm\.(environment|collectionVariables|variables)\.set\(/g, 'setVar(');
+            
+            // Build the transformed code
+            return `const response = await http(${url});${transformedBody}`;
+        });
+        
+        // 5. Add helpful comment if pm.sendRequest is still present (complex cases)
+        if (transformed.includes('pm.sendRequest')) {
+            transformed = '// Note: pm.sendRequest requires manual conversion to: await http(url, options)\n' + transformed;
+        }
+        
+        // 6. Replace console.log with log (optional, for consistency)
+        transformed = transformed.replace(/console\.log\(/g, 'log(');
+        
+        return transformed;
+    },
+
+    importPostmanCollection(postmanCollection) {
+        const groupName = postmanCollection.info?.name || 'Imported Collection';
+        const summary = {
+            groupName: groupName,
+            variablesImported: 0,
+            requestsImported: 0,
+            scriptsImported: 0
+        };
+        
+        // 1. Import Variables
+        if (postmanCollection.variable && postmanCollection.variable.length > 0) {
+            const varStore = getVariableStore();
+            if (!varStore[groupName]) {
+                varStore[groupName] = {};
+            }
+            
+            postmanCollection.variable.forEach(pmVar => {
+                if (pmVar.key) {
+                    varStore[groupName][pmVar.key] = pmVar.value || '';
+                    summary.variablesImported++;
+                }
+            });
+            
+            saveVariableStore(varStore);
+            addGroupName('variables', groupName);
+        }
+        
+        // 2. Import Requests (recursive for folders)
+        // Use counter to ensure unique IDs even when Date.now() is the same
+        let importCounter = 0;
+        const importItems = (items, folder = '') => {
+            items.forEach(item => {
+                if (item.item) {
+                    // This is a folder, recurse into it
+                    const folderName = folder ? `${folder} / ${item.name}` : item.name;
+                    importItems(item.item, folderName);
+                } else if (item.request) {
+                    // This is a request
+                    const request = item.request;
+                    const requestName = folder ? `${folder} / ${item.name}` : item.name;
+                    
+                    // Build URL from Postman format
+                    let url = '';
+                    if (typeof request.url === 'string') {
+                        url = request.url;
+                    } else if (request.url && request.url.raw) {
+                        url = request.url.raw;
+                    } else if (request.url) {
+                        // Build from parts
+                        const protocol = request.url.protocol || 'https';
+                        const host = Array.isArray(request.url.host) ? request.url.host.join('.') : request.url.host;
+                        const path = Array.isArray(request.url.path) ? '/' + request.url.path.join('/') : '';
+                        const query = Array.isArray(request.url.query) ? 
+                            '?' + request.url.query.map(q => `${q.key}=${q.value}`).join('&') : '';
+                        url = `${protocol}://${host}${path}${query}`;
+                    }
+                    
+                    // Extract headers
+                    const headers = [];
+                    if (request.header && Array.isArray(request.header)) {
+                        request.header.forEach(h => {
+                            if (h.key && !h.disabled) {
+                                headers.push({ key: h.key, value: h.value || '' });
+                            }
+                        });
+                    }
+                    
+                    // Extract body
+                    let body = '';
+                    if (request.body) {
+                        if (request.body.mode === 'raw' && request.body.raw) {
+                            body = request.body.raw;
+                        } else if (request.body.mode === 'urlencoded' && request.body.urlencoded) {
+                            // Convert form data to JSON
+                            const formData = {};
+                            request.body.urlencoded.forEach(item => {
+                                if (!item.disabled) {
+                                    formData[item.key] = item.value;
+                                }
+                            });
+                            body = JSON.stringify(formData, null, 2);
+                        }
+                        // Note: formdata mode with file uploads is not supported
+                    }
+                    
+                    // Handle pre-request scripts
+                    let preScriptId = '';
+                    const preRequestEvent = item.event?.find(e => e.listen === 'prerequest');
+                    if (preRequestEvent && preRequestEvent.script && preRequestEvent.script.exec) {
+                        const preScriptCode = Array.isArray(preRequestEvent.script.exec) ? 
+                            preRequestEvent.script.exec.join('\n') : preRequestEvent.script.exec;
+                        
+                        if (preScriptCode.trim()) {
+                            importCounter++;
+                            // Transform Postman script syntax to Just REST Client syntax
+                            const transformedCode = app.transformPostmanScript(preScriptCode);
+                            const preScript = {
+                                id: `script-${Date.now()}-${importCounter}`,
+                                name: `${requestName} - Pre`,
+                                code: transformedCode,
+                                type: 'pre-request',
+                                group: groupName
+                            };
+                            const savedPreScript = saveScript(preScript);
+                            preScriptId = savedPreScript.id;
+                            summary.scriptsImported++;
+                        }
+                    }
+                    
+                    // Handle test/post-request scripts
+                    let postScriptId = '';
+                    const testEvent = item.event?.find(e => e.listen === 'test');
+                    if (testEvent && testEvent.script && testEvent.script.exec) {
+                        const testScriptCode = Array.isArray(testEvent.script.exec) ? 
+                            testEvent.script.exec.join('\n') : testEvent.script.exec;
+                        
+                        if (testScriptCode.trim()) {
+                            importCounter++;
+                            // Transform Postman script syntax to Just REST Client syntax
+                            const transformedCode = app.transformPostmanScript(testScriptCode);
+                            const postScript = {
+                                id: `script-${Date.now()}-${importCounter}`,
+                                name: `${requestName} - Post`,
+                                code: transformedCode,
+                                group: groupName
+                            };
+                            const savedPostScript = saveScript(postScript);
+                            postScriptId = savedPostScript.id;
+                            summary.scriptsImported++;
+                        }
+                    }
+                    
+                    // Save the request
+                    // Generate unique ID for import to prevent deduplication
+                    importCounter++;
+                    const requestToSave = {
+                        id: `req-${Date.now()}-${importCounter}`,
+                        title: requestName,
+                        url: url,
+                        method: request.method || 'GET',
+                        rawHeaders: headers.length > 0 ? [...headers, { key: '', value: '' }] : [{ key: '', value: '' }],
+                        body: body,
+                        preScriptId: preScriptId,
+                        postScriptId: postScriptId,
+                        group: groupName
+                    };
+                    
+                    saveRequest(requestToSave);
+                    summary.requestsImported++;
+                }
+            });
+        };
+        
+        if (postmanCollection.item && Array.isArray(postmanCollection.item)) {
+            importItems(postmanCollection.item);
+        }
+        
+        // Persist the group name
+        addGroupName('requests', groupName);
+        addGroupName('scripts', groupName);
+        
+        return summary;
+    },
+    
+    /**
+     * Import Postman environment as variables
+     */
+    importPostmanEnvironment(postmanEnv) {
+        const groupName = postmanEnv.name || 'Imported Environment';
+        const varStore = getVariableStore();
+        
+        if (!varStore[groupName]) {
+            varStore[groupName] = {};
+        }
+        
+        let variablesImported = 0;
+        if (postmanEnv.values && Array.isArray(postmanEnv.values)) {
+            postmanEnv.values.forEach(item => {
+                if (item.key && item.enabled !== false) {
+                    varStore[groupName][item.key] = item.value || '';
+                    variablesImported++;
+                }
+            });
+        }
+        
+        saveVariableStore(varStore);
+        addGroupName('variables', groupName);
+        
+        return {
+            groupName: groupName,
+            variablesImported: variablesImported
+        };
+    },
+    
+    /**
+     * Handle Postman collection or environment import from file
+     */
+    async handlePostmanImport(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        try {
+            const fileContent = await file.text();
+            const postmanData = JSON.parse(fileContent);
+            
+            // Check if it's an environment file
+            if (postmanData._postman_variable_scope === 'environment' || 
+                (postmanData.values && Array.isArray(postmanData.values) && !postmanData.item)) {
+                
+                const summary = app.importPostmanEnvironment(postmanData);
+                
+                // Switch to the new group FIRST
+                app.switchGroup('variables', summary.groupName);
+                
+                // Then refresh UI (this will show the correct selected group)
+                app.renderGroupSelectors();
+                app.renderVariableStore();
+                
+                // Show summary
+                alert(`✓ Postman Environment imported!\n\nGroup: ${summary.groupName}\nVariables: ${summary.variablesImported}`);
+                
+            } 
+            // Check if it's a collection file
+            else if (postmanData.info && postmanData.info.schema && 
+                postmanData.info.schema.includes('getpostman.com')) {
+                
+                const summary = app.importPostmanCollection(postmanData);
+                
+                // Switch to the new group FIRST
+                app.switchGroup('variables', summary.groupName);
+                app.switchGroup('requests', summary.groupName);
+                app.switchGroup('scripts', summary.groupName);
+                
+                // Then refresh UI (this will show the correct selected groups)
+                app.renderGroupSelectors();
+                app.renderVariableStore();
+                app.renderCollections();
+                
+                // Show summary
+                alert(`✓ Postman Collection imported!\n\nGroup: ${summary.groupName}\nVariables: ${summary.variablesImported}\nRequests: ${summary.requestsImported}\nScripts: ${summary.scriptsImported}`);
+            }
+            else {
+                alert('Invalid Postman file format. Please select a valid Postman Collection or Environment JSON file.');
+                return;
+            }
+            
+        } catch (error) {
+            alert('Failed to import Postman file: ' + error.message);
+            console.error('Import error:', error);
+        }
+        
+        // Reset file input
+        event.target.value = '';
+    },
+    
+    /**
      * Parse a cURL command and extract request details
      * @param {string} curlCommand - The cURL command to parse
      * @returns {object} Parsed request details {url, method, headers, body}
@@ -570,8 +881,9 @@ const app = {
     applyTemplateToString(str) {
         if (!str) return str;
         const vars = getFlattenedVariables(app.activeGroups.variables);
-        return str.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
-            return vars[varName] !== undefined ? vars[varName] : match;
+        return str.replace(/\{\{(.*?)\}\}/g, (match, varName) => {
+            const key = varName.trim();
+            return vars[key] !== undefined ? vars[key] : match;
         });
     },
     
@@ -802,6 +1114,106 @@ const app = {
         );
     },
 
+    setupGroupMenus() {
+        // Setup dropdown toggles for each section
+        const menuConfigs = [
+            { menuBtn: 'var-group-menu-btn', menu: 'var-group-menu', deleteBtn: 'delete-var-group-btn', type: 'variables' },
+            { menuBtn: 'request-group-menu-btn', menu: 'request-group-menu', deleteBtn: 'delete-request-group-btn', type: 'requests' },
+            { menuBtn: 'script-group-menu-btn', menu: 'script-group-menu', deleteBtn: 'delete-script-group-btn', type: 'scripts' }
+        ];
+        
+        menuConfigs.forEach(config => {
+            const menuBtn = document.getElementById(config.menuBtn);
+            const menu = document.getElementById(config.menu);
+            const deleteBtn = document.getElementById(config.deleteBtn);
+            
+            if (!menuBtn || !menu || !deleteBtn) return;
+            
+            // Toggle dropdown menu
+            menuBtn.onclick = (e) => {
+                e.stopPropagation();
+                // Close all other menus
+                menuConfigs.forEach(c => {
+                    const otherMenu = document.getElementById(c.menu);
+                    if (otherMenu && c.menu !== config.menu) {
+                        otherMenu.classList.add('hidden');
+                    }
+                });
+                // Toggle current menu
+                menu.classList.toggle('hidden');
+            };
+            
+            // Delete group action
+            deleteBtn.onclick = () => {
+                menu.classList.add('hidden');
+                app.deleteGroup(config.type);
+            };
+        });
+        
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', (e) => {
+            menuConfigs.forEach(config => {
+                const menu = document.getElementById(config.menu);
+                const menuBtn = document.getElementById(config.menuBtn);
+                if (menu && menuBtn && !menuBtn.contains(e.target) && !menu.contains(e.target)) {
+                    menu.classList.add('hidden');
+                }
+            });
+        });
+    },
+
+    deleteGroup(type) {
+        const currentGroup = app.activeGroups[type];
+        
+        // Prevent deleting the default 'global' group
+        if (currentGroup === DEFAULT_GROUP) {
+            alert(`Cannot delete the default '${DEFAULT_GROUP}' group.`);
+            return;
+        }
+        
+        // Confirm deletion
+        if (!confirm(`Are you sure you want to delete the '${currentGroup}' group? This will delete all ${type} in this group.`)) {
+            return;
+        }
+        
+        // Delete the group and all its items
+        if (type === 'variables') {
+            const varStore = getVariableStore();
+            delete varStore[currentGroup];
+            saveVariableStore(varStore);
+        } else if (type === 'requests') {
+            const allRequests = getAllRequests();
+            const filteredRequests = allRequests.filter(r => r.group !== currentGroup);
+            saveCollection(STORAGE_KEYS.REQUESTS, filteredRequests);
+        } else if (type === 'scripts') {
+            const allScripts = getAllScripts();
+            const filteredScripts = allScripts.filter(s => (s.group || DEFAULT_GROUP) !== currentGroup);
+            saveCollection(STORAGE_KEYS.SCRIPTS, filteredScripts);
+        }
+        
+        // Remove group from the persisted group names list
+        const groupNames = loadGroupNames();
+        if (groupNames[type]) {
+            groupNames[type] = groupNames[type].filter(g => g !== currentGroup);
+            saveGroupNames(groupNames);
+        }
+        
+        // Switch to default group
+        app.activeGroups[type] = DEFAULT_GROUP;
+        setActiveGroup(type, DEFAULT_GROUP);
+        
+        // Refresh UI - update dropdowns and lists
+        app.renderGroupSelectors();
+        if (type === 'variables') {
+            app.renderVariableStore();
+        } else if (type === 'requests' || type === 'scripts') {
+            // renderCollections() handles both requests and scripts lists
+            app.renderCollections();
+        }
+        
+        console.log(`Group '${currentGroup}' deleted successfully`);
+    },
+
     renderHeaders() {
         const container = app.elements.headersContainer;
         container.innerHTML = '';
@@ -854,15 +1266,14 @@ const app = {
             `).join('')
             : '<p class="text-gray-500 text-xs">No scripts in this group.</p>';
 
-        // Separate pre and post scripts - use ALL scripts for dropdowns (not filtered by group)
-        const preScripts = allScripts.filter(s => s.type === 'pre-request');
-        const postScripts = allScripts.filter(s => s.type !== 'pre-request');
+        // Use ALL scripts for both pre and post dropdowns (not filtered by group or type)
+        const scriptOptions = allScripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.preScriptId || s.id === app.currentRequest.postScriptId ? 'selected' : ''}>${s.name} (${s.group})</option>`).join('');
         
         app.elements.preScriptSelect.innerHTML = '<option value="">-- No Pre-Script Selected --</option>' + 
-            preScripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.preScriptId ? 'selected' : ''}>${s.name} (${s.group})</option>`).join('');
+            allScripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.preScriptId ? 'selected' : ''}>${s.name} (${s.group})</option>`).join('');
         
         app.elements.postScriptSelect.innerHTML = '<option value="">-- No Post-Script Selected --</option>' + 
-            postScripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.postScriptId ? 'selected' : ''}>${s.name} (${s.group})</option>`).join('');
+            allScripts.map(s => `<option value="${s.id}" ${s.id === app.currentRequest.postScriptId ? 'selected' : ''}>${s.name} (${s.group})</option>`).join('');
 
         // Update script editor fields based on currentScript
         if (app.codeMirrorEditors.postScript) {
@@ -982,6 +1393,115 @@ const app = {
             app.elements.scriptNameInput.value = script.name;
             app.currentRequest.postScriptId = script.id; 
             app.elements.postScriptSelect.value = script.id;
+        }
+    },
+    
+    /**
+     * Show script editor dialog
+     */
+    showScriptEditorDialog(scriptId = null) {
+        const dialog = document.getElementById('script-editor-dialog');
+        const nameInput = document.getElementById('script-editor-name');
+        const codeTextarea = document.getElementById('script-editor-code');
+        const saveBtn = document.getElementById('script-editor-save');
+        const cancelBtn = document.getElementById('script-editor-cancel');
+        const docsBtn = document.getElementById('view-scripting-docs-btn');
+        
+        let currentScriptId = scriptId;
+        
+        // Load script if editing existing one
+        if (scriptId) {
+            const script = getAllScripts().find(s => s.id === scriptId);
+            if (script) {
+                nameInput.value = script.name || '';
+                codeTextarea.value = script.code || '';
+            }
+        } else {
+            // Clear for new script
+            nameInput.value = '';
+            codeTextarea.value = '';
+        }
+        
+        dialog.classList.remove('hidden');
+        nameInput.focus();
+        
+        // Remove old listeners
+        const newSaveBtn = saveBtn.cloneNode(true);
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        const newDocsBtn = docsBtn.cloneNode(true);
+        saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        docsBtn.parentNode.replaceChild(newDocsBtn, docsBtn);
+        
+        // Documentation button
+        newDocsBtn.onclick = () => {
+            app.openScriptingDocs();
+        };
+        
+        // Save button
+        newSaveBtn.onclick = () => {
+            const name = nameInput.value.trim() || 'Untitled Script';
+            const code = codeTextarea.value;
+            
+            const scriptToSave = {
+                id: currentScriptId,
+                name: name,
+                code: code,
+                group: app.activeGroups.scripts
+            };
+            
+            const savedScript = saveScript(scriptToSave);
+            
+            dialog.classList.add('hidden');
+            app.renderCollections();
+            app.renderGroupSelectors();
+            
+            alert(`✓ Script saved: ${savedScript.name}`);
+        };
+        
+        // Cancel button
+        newCancelBtn.onclick = () => {
+            dialog.classList.add('hidden');
+        };
+        
+        // Allow clicking backdrop to close
+        dialog.onclick = (e) => {
+            if (e.target === dialog) {
+                dialog.classList.add('hidden');
+            }
+        };
+    },
+    
+    /**
+     * Open scripting documentation
+     */
+    async openScriptingDocs() {
+        const docUrl = 'https://github.com/nicechester/just-rest-client/blob/main/SCRIPTING.md';
+        
+        // Check if running in Tauri - open in new window
+        if (window.__TAURI__) {
+            try {
+                const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+                
+                // Create a new window with the documentation
+                new WebviewWindow('scriptingDocs', {
+                    url: docUrl,
+                    title: 'Scripting Documentation',
+                    width: 1200,
+                    height: 800,
+                    center: true,
+                    resizable: true
+                });
+                
+                console.log('Opened scripting docs in new window');
+            } catch (err) {
+                console.error('Error opening documentation window:', err);
+                // Fallback: show URL in alert
+                alert(`Please visit the scripting documentation at:\n\n${docUrl}`);
+            }
+        } else {
+            // In web browser, open in new tab
+            window.open('SCRIPTING.md', '_blank');
         }
     },
     
@@ -1351,7 +1871,40 @@ const app = {
 
         // Attach event listeners
         document.getElementById('send-btn').onclick = app.handleSend;
+        
+        // Sidebar Import split button
+        const sidebarImportMainBtn = document.getElementById('sidebar-import-main-btn');
+        const sidebarImportDropdownBtn = document.getElementById('sidebar-import-dropdown-btn');
+        const sidebarImportDropdownMenu = document.getElementById('sidebar-import-dropdown-menu');
+        
+        // Main button action - Import JSON (default)
+        sidebarImportMainBtn.onclick = () => {
+            document.getElementById('import-file').click();
+        };
+        
+        // Dropdown arrow toggles menu
+        sidebarImportDropdownBtn.onclick = (e) => {
+            e.stopPropagation();
+            sidebarImportDropdownMenu.classList.toggle('hidden');
+        };
+        
+        // Close sidebar dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            const splitButtonContainer = sidebarImportMainBtn.parentElement.parentElement;
+            if (!splitButtonContainer.contains(e.target)) {
+                sidebarImportDropdownMenu.classList.add('hidden');
+            }
+        });
+        
+        // Sidebar Import menu item
+        document.getElementById('import-postman-btn').onclick = () => {
+            sidebarImportDropdownMenu.classList.add('hidden');
+            document.getElementById('import-postman-file').click();
+        };
+        
+        // Request builder Import cURL button (simple, no dropdown)
         document.getElementById('import-curl-btn').onclick = app.showImportCurlDialog;
+        
         document.getElementById('curl-btn').onclick = app.showCurlDialog;
         document.getElementById('new-request-btn').onclick = app.newRequest;
         document.getElementById('save-request-btn').onclick = app.saveAsNewRequest;
@@ -1532,18 +2085,48 @@ const app = {
                 } else if (e.target.classList.contains('load-script-btn') || e.target.closest('.load-script-btn')) {
                     const btn = e.target.classList.contains('load-script-btn') ? e.target : e.target.closest('.load-script-btn');
                     const id = btn.getAttribute('data-load-script');
-                    if (id) app.loadScriptToEditor(id);
+                    if (id) app.showScriptEditorDialog(id);
                 }
             });
         }
+        
+        // Add New Script button
+        document.getElementById('add-script-btn').onclick = () => {
+            app.showScriptEditorDialog();
+        };
 
         // Export/Import listeners
         document.getElementById('export-btn').onclick = () => exportAllData(getVariableStore(), getAllRequests(), getAllScripts());
-        document.getElementById('import-btn').onclick = () => document.getElementById('import-file').click();
+        // Import button is now a dropdown with handlers defined above
 
         // About dialog listeners - icon click to show About
         document.getElementById('app-icon').onclick = () => app.showAbout();
         document.getElementById('about-close').onclick = () => app.hideAbout();
+        document.getElementById('github-link-btn').onclick = async () => {
+            const url = 'https://github.com/nicechester/just-rest-client';
+            if (window.__TAURI__) {
+                try {
+                    const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+                    
+                    // Create a new window with GitHub
+                    new WebviewWindow('githubRepo', {
+                        url: url,
+                        title: 'Just REST Client - GitHub',
+                        width: 1200,
+                        height: 800,
+                        center: true,
+                        resizable: true
+                    });
+                    
+                    console.log('Opened GitHub in new window');
+                } catch (err) {
+                    console.error('Error opening GitHub window:', err);
+                    alert(`Please visit the GitHub repository at:\n\n${url}`);
+                }
+            } else {
+                window.open(url, '_blank');
+            }
+        };
 
         // Group selector change handlers
         document.getElementById('variables-group-select').onchange = (e) => {
@@ -1586,6 +2169,9 @@ const app = {
         } else {
             console.error('new-script-group-btn not found');
         }
+        
+        // Setup split button dropdowns for group actions
+        app.setupGroupMenus();
 
         // Add default variables if the store is empty
         const varStore = getVariableStore();
@@ -1598,12 +2184,16 @@ const app = {
         }
         
         // Show About dialog as splash screen on first load
-        const hasSeenAbout = localStorage.getItem('hasSeenAbout');
+        // Use different key for Tauri vs web to track separately
+        const storageKey = window.__TAURI__ ? 'hasSeenAboutTauri' : 'hasSeenAbout';
+        const hasSeenAbout = localStorage.getItem(storageKey);
+        console.log(`Splash screen check - Key: ${storageKey}, Seen: ${hasSeenAbout}, Tauri: ${!!window.__TAURI__}`);
         if (!hasSeenAbout) {
             setTimeout(() => {
+                console.log('Showing splash screen...');
                 app.showAbout();
             }, 300); // Small delay for smooth appearance
-            localStorage.setItem('hasSeenAbout', 'true');
+            localStorage.setItem(storageKey, 'true');
         }
     }
 };

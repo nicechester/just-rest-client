@@ -97,6 +97,11 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptId, 
     // Use Tauri's native fetch if available (no CORS), otherwise browser fetch
     const fetchFn = tauriFetch || fetch;
     
+    // Log the URL for debugging
+    console.log('[Request] Sending to:', processedUrl);
+    console.log('[Request] Method:', method);
+    console.log('[Request] Headers:', headers);
+    
     response = await fetchFn(processedUrl, {
       method: method,
       headers: headers,
@@ -121,6 +126,23 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptId, 
     const errorMsg = error?.message || error?.toString() || 'Unknown error';
     scriptOutput += `[Execution Error] Network or Parsing failure: ${errorMsg}\n`;
     scriptOutput += `Using Tauri HTTP: ${!!tauriFetch}\n`;
+    
+    // Add helpful diagnostics
+    if (errorMsg === 'Load failed' || errorMsg === 'Failed to fetch' || errorMsg.includes('NetworkError')) {
+      scriptOutput += `\n⚠️  Possible causes:\n`;
+      scriptOutput += `   • Server not running at ${processedUrl}\n`;
+      scriptOutput += `   • CORS policy blocking browser requests (Tauri app bypasses CORS)\n`;
+      scriptOutput += `   • Network connectivity issue\n`;
+      
+      // Check for encoded curly braces which some servers reject
+      if (processedUrl.includes('%7B') || processedUrl.includes('%7D')) {
+        scriptOutput += `   • URL contains encoded { } characters that may cause issues\n`;
+        scriptOutput += `     Try removing curly braces from your variable values\n`;
+      }
+    }
+    
+    console.error('[Request Error]', error);
+    console.error('[Request] Failed URL:', processedUrl);
     
     // Set a mock response object for display in case of network failure
     response = {
