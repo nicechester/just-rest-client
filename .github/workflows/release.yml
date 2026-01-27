@@ -43,6 +43,13 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-latest'
@@ -55,6 +62,10 @@ jobs:
 
       - name: Build Tauri app
         run: npm run tauri:build
+        env:
+          CI: false  # Prevent Tauri CLI CI detection issues
+          TAURI_SIGNING_PRIVATE_KEY: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
 
       - name: Upload macOS DMG to Release
         if: matrix.platform == 'macos-latest'

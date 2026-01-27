@@ -7,9 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "tauri": "cargo tauri",
-    "tauri:dev": "cargo tauri dev",
-    "tauri:build": "npm run build && cargo tauri build"
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "npm run build && tauri build"
   },
   "keywords": [
     "rest",
@@ -27,6 +27,7 @@
     "vanilla-jsoneditor": "^3.11.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.9.1",
     "@vitejs/plugin-basic-ssl": "^2.1.0",
     "vite": "^7.2.6"
   }
