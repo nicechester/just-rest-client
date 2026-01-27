@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Just REST Client</title>
+    <link rel="icon" type="image/png" href="jrc-icon.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/main.css">
     <!-- JSON Editor CSS -->
@@ -28,7 +29,7 @@
 </head>
 <body class="bg-gray-50 min-h-screen p-4 md:p-8">
     <div class="flex items-center gap-3 mb-6 border-b pb-2">
-        <img id="app-icon" src="just-rest-client.png" alt="Just REST Client Icon" class="h-9 w-9 rounded-lg shadow-md p-1 bg-white cursor-pointer hover:shadow-lg transition duration-150" title="About Just REST Client">
+        <img id="app-icon" src="jrc-icon.png" alt="Just REST Client Icon" class="h-9 w-9 rounded-lg shadow-md p-1 bg-white cursor-pointer hover:shadow-lg transition duration-150" title="About Just REST Client">
         <h1 class="text-3xl font-bold text-gray-800">Just REST Client</h1>
     </div>
 
@@ -180,6 +181,13 @@
                 <div id="main-panel-request" data-panel="request" class="main-panel bg-white p-6 rounded-xl shadow-lg border border-gray-200 space-y-4">
                     <h2 class="text-xl font-semibold text-gray-700">Request Builder</h2>
                     
+                    <!-- Save Request -->
+                    <div class="flex space-x-2 pb-4 border-b">
+                        <input type="text" id="request-title-input" placeholder="Request Title (e.g., Get Auth Token)" class="flex-1 p-3 border rounded-lg text-sm focus:ring-green-500 focus:border-green-500">
+                        <button id="new-request-btn" class="bg-gray-500 text-white p-3 rounded-lg hover:bg-gray-600 transition duration-150 min-w-[100px]">New</button>
+                        <button id="save-request-btn" class="bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 transition duration-150 min-w-[100px]">Save</button>
+                    </div>
+                    
                     <div class="space-y-2">
                         <div class="flex space-x-2">
                             <select id="method-select" class="w-32 p-3 border rounded-lg bg-gray-100 text-sm font-semibold focus:ring-blue-500 focus:border-blue-500">
@@ -251,13 +259,6 @@
                             <textarea id="post-script-editor" rows="5" placeholder="Use setVar('newKey', responseData.token);" class="w-full p-3 border rounded-lg text-sm code-input focus:ring-purple-500 focus:border-purple-500 font-mono"></textarea>
                             <div class="resize-handle" data-target="post-script-editor"></div>
                         </div>
-                    </div>
-
-                    <!-- Save Request -->
-                    <div class="border-t pt-4 flex space-x-2">
-                        <input type="text" id="request-title-input" placeholder="Request Title (e.g., Get Auth Token)" class="flex-1 p-3 border rounded-lg text-sm focus:ring-green-500 focus:border-green-500">
-                        <button id="new-request-btn" class="bg-gray-500 text-white p-3 rounded-lg hover:bg-gray-600 transition duration-150 min-w-[100px]">New</button>
-                        <button id="save-request-btn" class="bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 transition duration-150 min-w-[100px]">Save</button>
                     </div>
                 </div>
 
@@ -425,7 +426,7 @@
     <div id="about-dialog" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
         <div class="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-8 max-w-md mx-4 shadow-2xl border-2 border-blue-200 text-center transform transition-all">
             <div class="mb-6">
-                <img src="just-rest-client.png" alt="Just REST Client Icon" class="h-24 w-24 mx-auto rounded-2xl shadow-lg p-2 bg-white">
+                <img src="jrc-icon.png" alt="Just REST Client Icon" class="h-24 w-24 mx-auto rounded-2xl shadow-lg p-2 bg-white">
             </div>
             <h2 class="text-3xl font-bold text-gray-800 mb-2">Just REST Client</h2>
             <p class="text-gray-600 text-sm mb-1">A simple and powerful REST API testing tool</p>
