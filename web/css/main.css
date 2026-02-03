@@ -2,6 +2,12 @@
     font-family: 'Inter', sans-serif;
 }
 
+/* Ensure html and body fill viewport */
+html, body {
+    height: 100%;
+    overflow: hidden;
+}
+
 textarea,
 input[type="text"] {
     font-family: monospace;
@@ -23,14 +29,23 @@ input[type="text"] {
 
 /* Custom scrollbar for better visibility */
 .code-input::-webkit-scrollbar,
-.code-output::-webkit-scrollbar {
+.code-output::-webkit-scrollbar,
+.sidebar-scroll::-webkit-scrollbar,
+.main-scroll::-webkit-scrollbar {
     width: 8px;
 }
 
 .code-input::-webkit-scrollbar-thumb,
-.code-output::-webkit-scrollbar-thumb {
+.code-output::-webkit-scrollbar-thumb,
+.sidebar-scroll::-webkit-scrollbar-thumb,
+.main-scroll::-webkit-scrollbar-thumb {
     background: #cbd5e1;
     border-radius: 4px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover,
+.main-scroll::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
 }
 
 .tab-button.active,
