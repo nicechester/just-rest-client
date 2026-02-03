@@ -870,6 +870,7 @@ const app = {
         app.currentRequest.group = app.activeGroups.requests; // Set to current active group
         app.currentRequest.preScriptIds = [];
         app.currentRequest.postScriptIds = [];
+        app.currentRequest.originalTitle = null; // New request from cURL
         app.elements.requestTitleInput.value = 'Imported from cURL';
         app.elements.preScriptSelect.value = '';
         app.elements.postScriptSelect.value = '';
@@ -942,6 +943,10 @@ const app = {
         postScriptsList: document.getElementById('post-scripts-list'),
         scriptSearchInput: document.getElementById('script-search-input'),
 
+        // Search Inputs
+        variableSearchInput: document.getElementById('variable-search-input'),
+        requestSearchInput: document.getElementById('request-search-input'),
+
         // UI Lists
         variablesList: document.getElementById('variables-list'),
         requestsList: document.getElementById('requests-list'),
@@ -954,10 +959,21 @@ const app = {
 
     // --- UI Rendering ---
 
-    renderVariableStore() {
+    renderVariableStore(searchTerm = '') {
         const varStore = getVariableStore();
         const activeGroup = app.activeGroups.variables;
-        const vars = varStore[activeGroup] || {};
+        let vars = varStore[activeGroup] || {};
+        
+        // Apply search filter if search term provided
+        if (searchTerm) {
+            const searchLower = searchTerm.toLowerCase();
+            vars = Object.fromEntries(
+                Object.entries(vars).filter(([key, value]) => 
+                    key.toLowerCase().includes(searchLower) || 
+                    String(value).toLowerCase().includes(searchLower)
+                )
+            );
+        }
         
         app.elements.variablesList.innerHTML = Object.entries(vars).length > 0
             ? Object.entries(vars).map(([key, value]) => `
@@ -979,7 +995,9 @@ const app = {
                     </div>
                 </div>
             `).join('')
-            : '<p class="text-gray-500 text-xs">No variables in this group.</p>';
+            : (searchTerm 
+                ? '<p class="text-gray-500 text-xs">No variables match your search.</p>'
+                : '<p class="text-gray-500 text-xs">No variables in this group.</p>');
     },
     
     editVariable(key) {
@@ -1375,11 +1393,21 @@ const app = {
         });
     },
 
-    renderCollections(scriptSearchTerm = '') {
+    renderCollections(requestSearchTerm = '', scriptSearchTerm = '') {
         // Render Requests List (filtered by active group)
         const allRequests = getAllRequests();
         const activeRequestGroup = app.activeGroups.requests;
-        const requests = allRequests.filter(r => r.group === activeRequestGroup);
+        let requests = allRequests.filter(r => r.group === activeRequestGroup);
+        
+        // Apply search filter if search term provided
+        if (requestSearchTerm) {
+            const searchLower = requestSearchTerm.toLowerCase();
+            requests = requests.filter(r => 
+                r.title.toLowerCase().includes(searchLower) ||
+                r.url.toLowerCase().includes(searchLower) ||
+                r.method.toLowerCase().includes(searchLower)
+            );
+        }
         
         app.elements.requestsList.innerHTML = requests.length > 0
             ? requests.map(r => `
@@ -1391,7 +1419,9 @@ const app = {
                     <button data-delete-request="${r.id}" class="delete-request-btn text-red-500 hover:text-red-700 ml-2 text-xs px-2">X</button>
                 </div>
             `).join('')
-            : '<p class="text-gray-500 text-xs">No requests in this group.</p>';
+            : (requestSearchTerm 
+                ? '<p class="text-gray-500 text-xs">No requests match your search.</p>'
+                : '<p class="text-gray-500 text-xs">No requests in this group.</p>');
 
         // Render Scripts List and Select (filtered by active group and search term)
         const allScripts = getAllScripts();
@@ -1491,7 +1521,8 @@ const app = {
                 ...request, 
                 rawHeaders: request.rawHeaders || [{ key: '', value: '' }],
                 preScriptIds: preScriptIds,
-                postScriptIds: postScriptIds
+                postScriptIds: postScriptIds,
+                originalTitle: request.title  // Store original title to detect changes
             };
             
             app.elements.urlInput.value = request.url;
@@ -1710,8 +1741,14 @@ const app = {
             r.title === title && (r.group || 'global') === group
         );
         
+        // If title changed from the originally loaded request, create a new request (don't pass ID)
+        // This allows duplicating by changing the title
+        const titleChanged = app.currentRequest.id && 
+                           app.currentRequest.originalTitle && 
+                           app.currentRequest.originalTitle !== title;
+        
         const requestToSave = {
-            id: app.currentRequest.id,
+            id: titleChanged ? null : app.currentRequest.id, // Don't pass ID if title changed
             title: title,
             url: app.elements.urlInput.value,
             method: app.elements.methodSelect.value,
@@ -1725,10 +1762,13 @@ const app = {
         const savedReq = saveRequest(requestToSave);
         app.currentRequest.id = savedReq.id; 
         app.currentRequest.group = savedReq.group;
+        app.currentRequest.originalTitle = savedReq.title; // Track original title for future saves
         app.elements.requestTitleInput.value = savedReq.title;
         
         // Show appropriate message
-        if (existingRequest) {
+        if (titleChanged) {
+            alert(`✓ New request created: ${savedReq.title} (Group: ${savedReq.group})`);
+        } else if (existingRequest) {
             alert(`✓ Request updated: ${savedReq.title} (Group: ${savedReq.group})`);
         } else {
             alert(`✓ Request saved: ${savedReq.title} (Group: ${savedReq.group})`);
@@ -1755,7 +1795,8 @@ const app = {
             body: '',
             preScriptIds: [],
             postScriptIds: [],
-            group: app.activeGroups.requests  // Use active group
+            group: app.activeGroups.requests,  // Use active group
+            originalTitle: null  // No original title for new requests
         };
         
         app.elements.requestTitleInput.value = 'New Request';
@@ -2135,10 +2176,24 @@ const app = {
             }
         };
         
+        // Variable search handler
+        app.elements.variableSearchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value;
+            app.renderVariableStore(searchTerm);
+        });
+        
+        // Request search handler
+        app.elements.requestSearchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value;
+            const scriptSearchTerm = app.elements.scriptSearchInput.value;
+            app.renderCollections(searchTerm, scriptSearchTerm);
+        });
+        
         // Script search handler
         app.elements.scriptSearchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value;
-            app.renderCollections(searchTerm);
+            const requestSearchTerm = app.elements.requestSearchInput.value;
+            app.renderCollections(requestSearchTerm, searchTerm);
         });
         // Note: Pre/post script selectors are now just for adding to the list, no longer for editing
 

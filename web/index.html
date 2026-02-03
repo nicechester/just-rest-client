@@ -27,26 +27,28 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module" src="js/app.js"></script>
 </head>
-<body class="bg-gray-50 min-h-screen p-4 md:p-8">
-    <div class="flex items-center gap-3 mb-6 border-b pb-2">
+<body class="h-screen flex flex-col overflow-hidden bg-gray-50">
+    <!-- Sticky Header -->
+    <header class="flex-shrink-0 flex items-center gap-3 px-4 md:px-8 py-4 border-b bg-white shadow-sm">
         <img id="app-icon" src="jrc-icon.png" alt="Just REST Client Icon" class="h-9 w-9 rounded-lg shadow-md p-1 bg-white cursor-pointer hover:shadow-lg transition duration-150" title="About Just REST Client">
         <h1 class="text-3xl font-bold text-gray-800">Just REST Client</h1>
-    </div>
+    </header>
 
-    <div id="main-layout" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Content Area (fills remaining height) -->
+    <div id="main-layout" class="flex-1 flex overflow-hidden px-4 md:px-8 py-4 gap-6">
 
-        <!-- Sidebar (Collections/Variables/Scripts - Tabbed) -->
-        <aside class="col-span-1 space-y-4">
+        <!-- Left Sidebar (Collections/Variables/Scripts - Tabbed) -->
+        <aside class="w-full lg:w-1/3 flex flex-col space-y-4 overflow-hidden">
             
-            <!-- Sidebar Tab Navigation -->
-            <div class="flex border border-gray-300 rounded-xl shadow-md overflow-hidden">
+            <!-- Sidebar Tab Navigation (Fixed) -->
+            <div class="flex-shrink-0 flex border border-gray-300 rounded-xl shadow-md overflow-hidden bg-white">
                 <button data-tab="variables" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('variables')">Variables</button>
                 <button data-tab="requests" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150 border-l border-r border-gray-300" onclick="window.app.switchSidebarTab('requests')">Requests</button>
                 <button data-tab="scripts" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('scripts')">Scripts</button>
             </div>
 
-            <!-- Sidebar Tab Content Panel -->
-            <div class="bg-white p-4 rounded-xl shadow-lg border border-gray-200 min-h-[300px]">
+            <!-- Sidebar Tab Content Panel (Scrollable) -->
+            <div class="flex-1 overflow-y-auto bg-white p-4 rounded-xl shadow-lg border border-gray-200 sidebar-scroll">
                 
                 <!-- Variables Tab Content -->
                 <div id="tab-panel-variables" data-panel="variables" class="tab-panel space-y-4">
@@ -67,7 +69,12 @@
                         </div>
                     </div>
                     
-                    <div id="variables-list" class="space-y-2 text-sm max-h-96 overflow-y-auto">
+                    <!-- Search Box -->
+                    <div>
+                        <input type="text" id="variable-search-input" placeholder="Search variables by key..." class="w-full p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    
+                    <div id="variables-list" class="space-y-2 text-sm">
                         <!-- Variables will be rendered here -->
                     </div>
                     <div class="mt-4 flex space-x-1">
@@ -96,7 +103,12 @@
                         </div>
                     </div>
                     
-                    <div id="requests-list" class="space-y-2 text-sm max-h-64 overflow-y-auto">
+                    <!-- Search Box -->
+                    <div>
+                        <input type="text" id="request-search-input" placeholder="Search requests by title..." class="w-full p-2 border rounded-lg text-sm focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    
+                    <div id="requests-list" class="space-y-2 text-sm">
                         <!-- Saved requests will be loaded here -->
                         <p class="text-gray-500">No requests saved.</p>
                     </div>
@@ -126,7 +138,7 @@
                         <input type="text" id="script-search-input" placeholder="Search scripts by name..." class="w-full p-2 border rounded-lg text-sm focus:ring-purple-500 focus:border-purple-500">
                     </div>
                     
-                    <div id="scripts-list" class="space-y-2 text-sm max-h-64 overflow-y-auto">
+                    <div id="scripts-list" class="space-y-2 text-sm">
                         <!-- Saved scripts will be loaded here -->
                         <p class="text-gray-500">No scripts saved.</p>
                     </div>
@@ -138,8 +150,8 @@
                 </div>
             </div>
 
-            <!-- Export/Import -->
-            <div class="bg-white p-4 rounded-xl shadow-lg border border-gray-200 flex space-x-2">
+            <!-- Export/Import (Fixed at bottom) -->
+            <div class="flex-shrink-0 bg-white p-4 rounded-xl shadow-lg border border-gray-200 flex space-x-2">
                 <button id="export-btn" class="flex-1 bg-green-500 text-white p-3 rounded-lg hover:bg-green-600 transition">Export All</button>
                 <input type="file" id="import-file" accept="application/json" class="hidden" onchange="window.app.handleImport(event)">
                 <input type="file" id="import-postman-file" accept="application/json,.json" class="hidden" onchange="window.app.handlePostmanImport(event)">
@@ -170,17 +182,17 @@
 
         </aside>
 
-        <!-- Main Workspace (Request/Response Tabs) -->
-        <main class="col-span-1 lg:col-span-2 space-y-4">
+        <!-- Right Main Area (Request/Response Tabs) -->
+        <main class="flex-1 flex flex-col space-y-4 overflow-hidden">
             
-            <!-- Main Tab Navigation -->
-            <div class="flex border border-gray-300 rounded-xl shadow-md overflow-hidden">
+            <!-- Main Tab Navigation (Fixed) -->
+            <div class="flex-shrink-0 flex border border-gray-300 rounded-xl shadow-md overflow-hidden bg-white">
                 <button data-main-tab="request" class="main-tab-button flex-1 py-3 text-base font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150 border-r border-gray-300" onclick="window.app.switchMainTab('request')">Request Builder</button>
                 <button data-main-tab="result" class="main-tab-button flex-1 py-3 text-base font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchMainTab('result')">Result</button>
             </div>
 
-            <!-- Main Tab Panels -->
-            <div id="main-tab-content-area">
+            <!-- Main Tab Panels (Scrollable) -->
+            <div id="main-tab-content-area" class="flex-1 overflow-y-auto main-scroll">
                 
                 <!-- Request Details Panel -->
                 <div id="main-panel-request" data-panel="request" class="main-panel bg-white p-6 rounded-xl shadow-lg border border-gray-200 space-y-4">
