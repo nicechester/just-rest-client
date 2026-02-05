@@ -4,7 +4,7 @@
   <img src="jrc-screenshot.png" alt="Just REST Client Screenshot" width="600"/>
 </div>
 
-Just REST Client is a lightweight, single-page application (SPA) client built to test and interact with RESTful APIs. It features variable templating, configurable HTTP methods, and a dedicated response viewer for body, headers, and script output.
+Just REST Client is a lightweight, modern REST API client built to test and interact with RESTful APIs. It features variable templating, configurable HTTP methods, a dedicated response viewer for body, headers, and script output, and an intuitive interface with resizable panes, type-ahead search, and smart script selection.
 
 ## 🔗 Usage Options
 
@@ -103,27 +103,41 @@ npm run tauri:build
 - **Inline Variable Editing**: Click variables to edit inline
 - **Custom Modals**: Native-like dialogs for better UX
 - **Responsive UI**: Built with Tailwind CSS
+- **Resizable Panes**: Draggable divider between sidebar and main content with persistent sizing
+- **Type-Ahead Script Selector**: Quick script selection with autocomplete and keyboard navigation
+- **Active Group Display**: Visual indication of current group below each tab
+- **Smart Script Filtering**: Only shows relevant scripts (active group + global) in dropdowns
+- **Search Functionality**: Search across variables, requests, and scripts with real-time filtering
 
 ## 🚀 Getting Started
 
 To use the client, follow these steps:
 
-### 1. Configure the Request
+### 1. User Interface
+
+- **Resizable Layout**: Drag the vertical divider between the sidebar and main content to adjust pane sizes (persists across sessions)
+- **Search**: Use the search bar in each tab (Variables, Requests, Scripts) to quickly filter items
+- **Group Management**: Switch between groups using the tabs in the sidebar - the active group name appears below each tab
+- **Responsive Design**: The UI adapts to different screen sizes, with vertical layout on mobile devices
+
+### 2. Configure the Request
 
 - **Select Method**: Choose the desired HTTP method from the dropdown (e.g., GET, POST).
 - **Enter URL**: Input the target API endpoint into the URL text box. You can use global variables here (e.g., `{{baseUrl}}/users/{{userId}}`).
 - **Request Body**: If using POST, PUT, or PATCH, enter the data payload (e.g., JSON) into the Request Body area.
 
-### 2. Environment Variables (Sidebar)
+### 3. Environment Variables (Sidebar)
 
 - **Manage Variables**: Add, view, and delete environment variables using the Variables tab.
 - **Defaults**: The application starts with default variables (e.g., `baseUrl`, `token`) for testing.
 - **Variable Substitution**: Any string enclosed in double curly braces (`{{...}}`) in URLs, headers, or body is automatically replaced with the corresponding variable value.
 - **Persistence**: All variables are saved to localStorage and persist across sessions.
 
-### 3. Pre-Request Scripts
+### 4. Pre-Request Scripts
 
 - **Dynamic Variables**: Execute JavaScript before the request to prepare data
+- **Script Selection**: Use the type-ahead script selector - start typing to filter, use arrow keys to navigate, Enter to select
+- **Smart Filtering**: Only scripts from your active group plus the global group are shown (reduces clutter)
 - **Use Cases**: 
   - Generate timestamps or dynamic values
   - Fetch OAuth tokens from auth servers
@@ -148,11 +162,12 @@ if (response.status === 200) {
 }
 ```
 
-### 4. Post-Request Scripts
+### 5. Post-Request Scripts
 
 - **Extract Data**: Parse response and save values as variables
 - **Chain Requests**: Extract IDs/tokens and make follow-up requests
 - **Validation**: Check response structure and validate data
+- **Script Selection**: Same type-ahead selector as pre-request scripts with smart filtering
 - **Available Context**: `response`, `responseData`, `getVar()`, `setVar()`, `log()`, `http()`
 
 ```javascript
@@ -175,7 +190,7 @@ if (response.status === 200) {
 
 **See [SCRIPTING.md](SCRIPTING.md) for complete documentation with more examples.**
 
-### 5. Send and View Results
+### 6. Send and View Results
 
 - Click the **Send** button.
 - Pre-request scripts execute first (if configured).
@@ -212,18 +227,26 @@ The JavaScript logic is divided into the following modules:
 
 ## 📝 Roadmap
 
-Future planned features include:
+### Implemented ✅
 
-- ✅ ~~Variable groups~~ (Implemented)
-- ✅ ~~Request collections~~ (Implemented via groups)
-- ✅ ~~HTTP client in scripts~~ (Implemented)
-- ✅ ~~Request chaining~~ (Implemented via scripts)
+- ✅ Variable groups with global scope inheritance
+- ✅ Request collections via groups
+- ✅ HTTP client in scripts for request chaining
+- ✅ Pre/post-request scripting with full async/await support
+- ✅ Resizable panes with persistent sizing
+- ✅ Type-ahead search for scripts with keyboard navigation
+- ✅ Search functionality across all tabs
+- ✅ Active group visibility indicators
+
+### Planned Features
+
 - Request history with search and filtering
 - Support for form data and multipart uploads
 - GraphQL support
 - WebSocket testing
 - Environment variable sync across devices
 - Dark mode toggle
+- Authentication helpers (OAuth 2.0, JWT, API key)
 
 ## 🤝 Contributing
 
