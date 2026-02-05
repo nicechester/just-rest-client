@@ -55,6 +55,167 @@ loadInitialVariables(loadVariableStore, saveVariableStore);
 
 // --- 5. APP.JS Logic (Controller & UI) ---
 
+// Script Combobox Class for type-ahead functionality
+class ScriptCombobox {
+    constructor(inputId, dropdownId, onSelect) {
+        this.input = document.getElementById(inputId);
+        this.dropdown = document.getElementById(dropdownId);
+        this.onSelect = onSelect;
+        this.allScripts = [];
+        this.highlightedIndex = -1;
+        
+        this.init();
+    }
+    
+    init() {
+        if (!this.input || !this.dropdown) return;
+        
+        // Input events
+        this.input.addEventListener('input', () => this.filterAndShow());
+        this.input.addEventListener('focus', () => this.filterAndShow());
+        this.input.addEventListener('blur', () => {
+            // Delay to allow click on dropdown
+            setTimeout(() => this.hide(), 200);
+        });
+        
+        // Keyboard navigation
+        this.input.addEventListener('keydown', (e) => this.handleKeydown(e));
+        
+        // Click outside to close
+        document.addEventListener('click', (e) => {
+            if (!this.input.contains(e.target) && !this.dropdown.contains(e.target)) {
+                this.hide();
+            }
+        });
+    }
+    
+    setScripts(scripts) {
+        this.allScripts = scripts;
+    }
+    
+    filterAndShow() {
+        const searchTerm = this.input.value.toLowerCase().trim();
+        const filtered = searchTerm 
+            ? this.allScripts.filter(s => 
+                s.name.toLowerCase().includes(searchTerm) || 
+                s.group.toLowerCase().includes(searchTerm)
+              )
+            : this.allScripts;
+        
+        this.renderDropdown(filtered);
+        if (filtered.length > 0 || searchTerm) {
+            this.show();
+        } else {
+            this.hide();
+        }
+    }
+    
+    renderDropdown(scripts) {
+        this.highlightedIndex = -1;
+        
+        if (scripts.length === 0) {
+            this.dropdown.innerHTML = '<div class="script-combobox-empty">No scripts found</div>';
+            return;
+        }
+        
+        this.dropdown.innerHTML = scripts.map((s, index) => `
+            <div class="script-combobox-option" data-script-id="${s.id}" data-index="${index}">
+                <span class="script-name">${s.name}</span>
+                <span class="script-group">(${s.group})</span>
+            </div>
+        `).join('');
+        
+        // Add click handlers
+        this.dropdown.querySelectorAll('.script-combobox-option').forEach((option) => {
+            option.addEventListener('click', (e) => {
+                const scriptId = option.getAttribute('data-script-id');
+                const script = this.allScripts.find(s => s.id === scriptId);
+                if (script) {
+                    this.selectScript(script);
+                }
+            });
+            
+            option.addEventListener('mouseenter', (e) => {
+                this.highlightedIndex = parseInt(option.getAttribute('data-index'));
+                this.updateHighlight();
+            });
+        });
+    }
+    
+    handleKeydown(e) {
+        const options = this.dropdown.querySelectorAll('.script-combobox-option');
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (options.length > 0) {
+                this.highlightedIndex = Math.min(this.highlightedIndex + 1, options.length - 1);
+                this.updateHighlight();
+                this.scrollToHighlighted();
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (options.length > 0) {
+                this.highlightedIndex = Math.max(this.highlightedIndex - 1, 0);
+                this.updateHighlight();
+                this.scrollToHighlighted();
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (this.highlightedIndex >= 0 && options[this.highlightedIndex]) {
+                const scriptId = options[this.highlightedIndex].getAttribute('data-script-id');
+                const script = this.allScripts.find(s => s.id === scriptId);
+                if (script) {
+                    this.selectScript(script);
+                }
+            }
+        } else if (e.key === 'Escape') {
+            this.hide();
+            this.input.blur();
+        }
+    }
+    
+    updateHighlight() {
+        const options = this.dropdown.querySelectorAll('.script-combobox-option');
+        options.forEach((opt, idx) => {
+            if (idx === this.highlightedIndex) {
+                opt.classList.add('highlighted');
+            } else {
+                opt.classList.remove('highlighted');
+            }
+        });
+    }
+    
+    scrollToHighlighted() {
+        const options = this.dropdown.querySelectorAll('.script-combobox-option');
+        if (options[this.highlightedIndex]) {
+            options[this.highlightedIndex].scrollIntoView({ block: 'nearest' });
+        }
+    }
+    
+    selectScript(script) {
+        if (this.onSelect) {
+            this.onSelect(script);
+        }
+        this.input.value = '';
+        this.hide();
+        this.input.blur();
+    }
+    
+    show() {
+        this.dropdown.classList.remove('hidden');
+    }
+    
+    hide() {
+        this.dropdown.classList.add('hidden');
+        this.highlightedIndex = -1;
+    }
+    
+    clear() {
+        this.input.value = '';
+        this.hide();
+    }
+}
+
 const app = {
     currentRequest: {
         id: null,
@@ -872,8 +1033,8 @@ const app = {
         app.currentRequest.postScriptIds = [];
         app.currentRequest.originalTitle = null; // New request from cURL
         app.elements.requestTitleInput.value = 'Imported from cURL';
-        app.elements.preScriptSelect.value = '';
-        app.elements.postScriptSelect.value = '';
+        if (app.preScriptCombobox) app.preScriptCombobox.clear();
+        if (app.postScriptCombobox) app.postScriptCombobox.clear();
         
         app.renderPreScriptsList();
         app.renderPostScriptsList();
@@ -937,8 +1098,10 @@ const app = {
         requestTitleInput: document.getElementById('request-title-input'),
         
         // Scripting
-        preScriptSelect: document.getElementById('pre-script-select'),
-        postScriptSelect: document.getElementById('post-script-select'),
+        preScriptInput: document.getElementById('pre-script-input'),
+        postScriptInput: document.getElementById('post-script-input'),
+        preScriptDropdown: document.getElementById('pre-script-dropdown'),
+        postScriptDropdown: document.getElementById('post-script-dropdown'),
         preScriptsList: document.getElementById('pre-scripts-list'),
         postScriptsList: document.getElementById('post-scripts-list'),
         scriptSearchInput: document.getElementById('script-search-input'),
@@ -1212,6 +1375,25 @@ const app = {
             `<option value="${g}" ${g === app.activeGroups.scripts ? 'selected' : ''}>${g}</option>`
         ).join('');
     },
+
+    renderTabTitles() {
+        // Update tab buttons to show active group names
+        const tabs = [
+            { type: 'variables', selector: '[data-tab="variables"]' },
+            { type: 'requests', selector: '[data-tab="requests"]' },
+            { type: 'scripts', selector: '[data-tab="scripts"]' }
+        ];
+
+        tabs.forEach(tab => {
+            const button = document.querySelector(tab.selector);
+            if (button) {
+                const groupNameEl = button.querySelector('.tab-group-name');
+                if (groupNameEl) {
+                    groupNameEl.textContent = app.activeGroups[tab.type];
+                }
+            }
+        });
+    },
     
     switchGroup(type, groupName) {
         console.log(`Switching ${type} group to: ${groupName}`);
@@ -1225,6 +1407,9 @@ const app = {
         } else if (type === 'scripts') {
             app.renderCollections();
         }
+        
+        // Update tab titles to show new active group
+        app.renderTabTitles();
         
         console.log(`Active groups after switch:`, app.activeGroups);
     },
@@ -1447,12 +1632,17 @@ const app = {
                 ? '<p class="text-gray-500 text-xs">No scripts match your search.</p>'
                 : '<p class="text-gray-500 text-xs">No scripts in this group.</p>');
 
-        // Use ALL scripts for both pre and post dropdowns (not filtered by group)
-        app.elements.preScriptSelect.innerHTML = '<option value="">-- Select a Pre-Script to Add --</option>' + 
-            allScripts.map(s => `<option value="${s.id}">${s.name} (${s.group})</option>`).join('');
+        // Filter scripts for comboboxes: only active scripts group + global group
+        const filteredScriptsForCombobox = allScripts.filter(s => 
+            s.group === activeScriptGroup || s.group === DEFAULT_GROUP
+        );
         
-        app.elements.postScriptSelect.innerHTML = '<option value="">-- Select a Post-Script to Add --</option>' + 
-            allScripts.map(s => `<option value="${s.id}">${s.name} (${s.group})</option>`).join('');
+        if (app.preScriptCombobox) {
+            app.preScriptCombobox.setScripts(filteredScriptsForCombobox);
+        }
+        if (app.postScriptCombobox) {
+            app.postScriptCombobox.setScripts(filteredScriptsForCombobox);
+        }
     },
     
     // --- Tab Switching Logic (same as original) ---
@@ -1803,8 +1993,8 @@ const app = {
         app.elements.urlInput.value = '';
         app.elements.methodSelect.value = 'GET';
         app.setRequestBody('');
-        app.elements.preScriptSelect.value = '';
-        app.elements.postScriptSelect.value = '';
+        if (app.preScriptCombobox) app.preScriptCombobox.clear();
+        if (app.postScriptCombobox) app.postScriptCombobox.clear();
         
         app.renderHeaders();
         app.renderPreScriptsList();
@@ -2007,6 +2197,66 @@ const app = {
         }
     },
     
+    // --- Vertical Resizer ---
+
+    initVerticalResizer() {
+        const handle = document.getElementById('vertical-resize-handle');
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('main-content');
+        const container = document.getElementById('main-layout');
+        
+        if (!handle || !sidebar || !mainContent || !container) return;
+        
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 0;
+        
+        handle.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = sidebar.offsetWidth;
+            handle.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            
+            const containerWidth = container.offsetWidth;
+            const deltaX = e.clientX - startX;
+            const newWidth = startWidth + deltaX;
+            
+            // Set min/max width constraints (20% to 60% of container)
+            const minWidth = containerWidth * 0.2;
+            const maxWidth = containerWidth * 0.6;
+            
+            if (newWidth >= minWidth && newWidth <= maxWidth) {
+                sidebar.style.width = `${newWidth}px`;
+            }
+        });
+        
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                handle.classList.remove('dragging');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                
+                // Save width preference to localStorage
+                const sidebarWidth = sidebar.offsetWidth;
+                localStorage.setItem('jrc-sidebar-width', sidebarWidth);
+            }
+        });
+        
+        // Restore saved width on load
+        const savedWidth = localStorage.getItem('jrc-sidebar-width');
+        if (savedWidth) {
+            sidebar.style.width = `${savedWidth}px`;
+        }
+    },
+
     // --- Initialization ---
 
     init() {
@@ -2022,6 +2272,9 @@ const app = {
         
         // Render group selectors first
         app.renderGroupSelectors();
+        
+        // Update tab titles with active group names
+        app.renderTabTitles();
         
         // Load and render initial state
         app.renderVariableStore();
@@ -2085,32 +2338,8 @@ const app = {
         document.getElementById('new-request-btn').onclick = app.newRequest;
         document.getElementById('save-request-btn').onclick = app.saveAsNewRequest;
         
-        // Script add buttons
-        document.getElementById('add-pre-script-btn').onclick = () => {
-            const selectedId = app.elements.preScriptSelect.value;
-            if (selectedId && !app.currentRequest.preScriptIds.includes(selectedId)) {
-                app.currentRequest.preScriptIds.push(selectedId);
-                app.renderPreScriptsList();
-                app.elements.preScriptSelect.value = ''; // Reset selector
-            } else if (!selectedId) {
-                alert('Please select a script to add');
-            } else {
-                alert('This script is already added');
-            }
-        };
-        
-        document.getElementById('add-post-script-btn').onclick = () => {
-            const selectedId = app.elements.postScriptSelect.value;
-            if (selectedId && !app.currentRequest.postScriptIds.includes(selectedId)) {
-                app.currentRequest.postScriptIds.push(selectedId);
-                app.renderPostScriptsList();
-                app.elements.postScriptSelect.value = ''; // Reset selector
-            } else if (!selectedId) {
-                alert('Please select a script to add');
-            } else {
-                alert('This script is already added');
-            }
-        };
+        // Script add buttons are no longer needed - typing and selecting adds directly via combobox
+        // But we can keep them as hidden/removed in HTML or repurpose them
         
         // Initialize JSON Editor for response (read-only)
         const jsonEditorContainer = document.getElementById('json-editor-container');
@@ -2355,6 +2584,36 @@ const app = {
             };
             saveVariableStore(varStore);
         }
+        
+        // Initialize vertical resizer for split panes
+        app.initVerticalResizer();
+        
+        // Initialize script comboboxes for type-ahead
+        app.preScriptCombobox = new ScriptCombobox(
+            'pre-script-input',
+            'pre-script-dropdown',
+            (script) => {
+                if (!app.currentRequest.preScriptIds.includes(script.id)) {
+                    app.currentRequest.preScriptIds.push(script.id);
+                    app.renderPreScriptsList();
+                } else {
+                    alert('This script is already added');
+                }
+            }
+        );
+
+        app.postScriptCombobox = new ScriptCombobox(
+            'post-script-input',
+            'post-script-dropdown',
+            (script) => {
+                if (!app.currentRequest.postScriptIds.includes(script.id)) {
+                    app.currentRequest.postScriptIds.push(script.id);
+                    app.renderPostScriptsList();
+                } else {
+                    alert('This script is already added');
+                }
+            }
+        );
         
         // Show About dialog as splash screen on first load
         // Use different key for Tauri vs web to track separately

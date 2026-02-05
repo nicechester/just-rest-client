@@ -55,6 +55,28 @@ input[type="text"] {
     /* Blue-500 */
 }
 
+/* Tab group name styling */
+.tab-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.tab-title {
+    line-height: 1.2;
+}
+
+.tab-group-name {
+    margin-top: 2px;
+    font-weight: normal;
+    line-height: 1;
+}
+
+.tab-button.active .tab-group-name {
+    color: rgba(255, 255, 255, 0.8);
+}
+
 /* JSON Syntax Highlighting Overrides */
 pre[class*="language-"] {
     margin: 0;
@@ -148,6 +170,35 @@ pre[class*="language-"] code {
     border-radius: 2px;
 }
 
+/* Vertical Resize Handle */
+.vertical-resize-handle {
+    width: 8px;
+    margin: 0 8px;
+    cursor: col-resize;
+    background: #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.vertical-resize-handle:hover {
+    background: #d1d5db;
+}
+
+.vertical-resize-handle.dragging {
+    background: #9ca3af;
+}
+
+.vertical-resize-handle .resize-indicator {
+    width: 3px;
+    height: 30px;
+    background: #9ca3af;
+    border-radius: 2px;
+}
+
 /* Fullscreen Mode */
 #response-body-wrapper.fullscreen {
     position: fixed;
@@ -193,4 +244,78 @@ pre[class*="language-"] code {
 #json-editor-container .jse-main {
     height: 100%;
     overflow: auto;
+}
+
+/* Script Combobox Styling */
+.script-combobox-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.script-combobox-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    margin-top: 4px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    z-index: 50;
+}
+
+.script-combobox-dropdown.hidden {
+    display: none;
+}
+
+.script-combobox-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background-color 0.15s;
+}
+
+.script-combobox-option:hover,
+.script-combobox-option.highlighted {
+    background-color: #eff6ff;
+}
+
+.script-combobox-option.selected {
+    background-color: #dbeafe;
+    font-weight: 500;
+}
+
+.script-combobox-option .script-name {
+    color: #1f2937;
+}
+
+.script-combobox-option .script-group {
+    color: #6b7280;
+    font-size: 0.75rem;
+    margin-left: 4px;
+}
+
+.script-combobox-empty {
+    padding: 8px 12px;
+    color: #9ca3af;
+    font-size: 0.875rem;
+    font-style: italic;
+}
+
+/* Responsive: Hide vertical resizer on mobile */
+@media (max-width: 1023px) {
+    .vertical-resize-handle {
+        display: none;
+    }
+    
+    #main-layout {
+        flex-direction: column !important;
+    }
+    
+    #sidebar {
+        width: 100% !important;
+    }
 }
