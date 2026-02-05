@@ -16,7 +16,9 @@ You can access the live version of the application here:
 
 #### Download Pre-Built Binaries
 
-Download the latest version for your platform from the [Releases page](https://github.com/nicechester/just-rest-client/releases):
+Download the latest version for your platform from the [Releases page](https://github.com/nicechester/just-rest-client/releases). 
+
+📋 See the [CHANGELOG](CHANGELOG.md) for detailed release notes and version history.
 
 | Platform | File | Size | Notes |
 |----------|------|------|-------|
