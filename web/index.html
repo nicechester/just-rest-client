@@ -35,16 +35,25 @@
     </header>
 
     <!-- Main Content Area (fills remaining height) -->
-    <div id="main-layout" class="flex-1 flex overflow-hidden px-4 md:px-8 py-4 gap-6">
+    <div id="main-layout" class="flex-1 flex overflow-hidden px-4 md:px-8 py-4">
 
         <!-- Left Sidebar (Collections/Variables/Scripts - Tabbed) -->
-        <aside class="w-full lg:w-1/3 flex flex-col space-y-4 overflow-hidden">
+        <aside id="sidebar" style="width: 33.33%;" class="w-full flex flex-col space-y-4 overflow-hidden">
             
             <!-- Sidebar Tab Navigation (Fixed) -->
             <div class="flex-shrink-0 flex border border-gray-300 rounded-xl shadow-md overflow-hidden bg-white">
-                <button data-tab="variables" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('variables')">Variables</button>
-                <button data-tab="requests" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150 border-l border-r border-gray-300" onclick="window.app.switchSidebarTab('requests')">Requests</button>
-                <button data-tab="scripts" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('scripts')">Scripts</button>
+                <button data-tab="variables" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('variables')">
+                    <div class="tab-title">Variables</div>
+                    <div class="tab-group-name text-xs text-gray-400"></div>
+                </button>
+                <button data-tab="requests" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150 border-l border-r border-gray-300" onclick="window.app.switchSidebarTab('requests')">
+                    <div class="tab-title">Requests</div>
+                    <div class="tab-group-name text-xs text-gray-400"></div>
+                </button>
+                <button data-tab="scripts" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('scripts')">
+                    <div class="tab-title">Scripts</div>
+                    <div class="tab-group-name text-xs text-gray-400"></div>
+                </button>
             </div>
 
             <!-- Sidebar Tab Content Panel (Scrollable) -->
@@ -182,8 +191,13 @@
 
         </aside>
 
+        <!-- Vertical Resize Handle -->
+        <div id="vertical-resize-handle" class="vertical-resize-handle">
+            <div class="resize-indicator"></div>
+        </div>
+
         <!-- Right Main Area (Request/Response Tabs) -->
-        <main class="flex-1 flex flex-col space-y-4 overflow-hidden">
+        <main id="main-content" class="flex-1 flex flex-col space-y-4 overflow-hidden">
             
             <!-- Main Tab Navigation (Fixed) -->
             <div class="flex-shrink-0 flex border border-gray-300 rounded-xl shadow-md overflow-hidden bg-white">
@@ -246,11 +260,19 @@
                     <div class="border-t pt-4 space-y-2">
                         <div class="flex justify-between items-center">
                             <h3 class="font-medium text-gray-600">Pre-Request Scripts</h3>
-                            <button id="add-pre-script-btn" class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-indigo-700 transition">+ Add</button>
                         </div>
-                        <select id="pre-script-select" class="w-full p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
-                            <option value="">-- Select a Pre-Script to Add --</option>
-                        </select>
+                        <div class="script-combobox-wrapper">
+                            <input 
+                                type="text" 
+                                id="pre-script-input" 
+                                class="script-combobox-input w-full p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Type to search and add scripts..."
+                                autocomplete="off"
+                            />
+                            <div id="pre-script-dropdown" class="script-combobox-dropdown hidden">
+                                <!-- Options populated dynamically -->
+                            </div>
+                        </div>
                         <div id="pre-scripts-list" class="space-y-1 min-h-[40px] p-2 border rounded-lg bg-gray-50">
                             <p class="text-gray-400 text-xs italic">No pre-request scripts selected</p>
                         </div>
@@ -261,11 +283,19 @@
                     <div class="border-t pt-4 space-y-2">
                         <div class="flex justify-between items-center">
                             <h3 class="font-medium text-gray-600">Post-Request Scripts</h3>
-                            <button id="add-post-script-btn" class="bg-purple-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-purple-700 transition">+ Add</button>
                         </div>
-                        <select id="post-script-select" class="w-full p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
-                            <option value="">-- Select a Post-Script to Add --</option>
-                        </select>
+                        <div class="script-combobox-wrapper">
+                            <input 
+                                type="text" 
+                                id="post-script-input" 
+                                class="script-combobox-input w-full p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Type to search and add scripts..."
+                                autocomplete="off"
+                            />
+                            <div id="post-script-dropdown" class="script-combobox-dropdown hidden">
+                                <!-- Options populated dynamically -->
+                            </div>
+                        </div>
                         <div id="post-scripts-list" class="space-y-1 min-h-[40px] p-2 border rounded-lg bg-gray-50">
                             <p class="text-gray-400 text-xs italic">No post-request scripts selected</p>
                         </div>
