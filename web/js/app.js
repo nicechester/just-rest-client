@@ -470,42 +470,30 @@ const app = {
     
     // Custom input dialog
     inputDialog: {
-        show(title, message, placeholder, onConfirm) {
+        show(title, message, placeholder, onConfirm, initialValue) {
             const dialog = document.getElementById('input-dialog');
             const titleEl = document.getElementById('input-dialog-title');
             const messageEl = document.getElementById('input-dialog-message');
             const inputEl = document.getElementById('input-dialog-input');
             const okBtn = document.getElementById('input-dialog-ok');
             const cancelBtn = document.getElementById('input-dialog-cancel');
-            
+
             titleEl.textContent = title;
             messageEl.textContent = message;
             inputEl.placeholder = placeholder || '';
-            inputEl.value = '';
+            inputEl.value = initialValue || '';
             dialog.classList.remove('hidden');
-            
-            // Focus on input
-            setTimeout(() => inputEl.focus(), 100);
-            
-            // Remove old listeners
-            const newOkBtn = okBtn.cloneNode(true);
-            const newCancelBtn = cancelBtn.cloneNode(true);
-            okBtn.parentNode.replaceChild(newOkBtn, okBtn);
-            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-            
-            // Handle Enter key in input
-            const newInputEl = inputEl.cloneNode(true);
-            inputEl.parentNode.replaceChild(newInputEl, inputEl);
-            
+
             const handleSubmit = () => {
-                const value = newInputEl.value.trim();
+                const value = inputEl.value.trim();
                 dialog.classList.add('hidden');
                 if (value) {
                     onConfirm(value);
                 }
             };
-            
-            newInputEl.onkeydown = (e) => {
+
+            // Reassign handlers directly (replaces any previous handlers)
+            inputEl.onkeydown = (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     handleSubmit();
@@ -513,13 +501,18 @@ const app = {
                     dialog.classList.add('hidden');
                 }
             };
-            
-            // Add new listeners
-            newOkBtn.onclick = handleSubmit;
-            
-            newCancelBtn.onclick = () => {
+
+            okBtn.onclick = handleSubmit;
+
+            cancelBtn.onclick = () => {
                 dialog.classList.add('hidden');
             };
+
+            // Focus and select after DOM is ready
+            setTimeout(() => {
+                inputEl.focus();
+                inputEl.select();
+            }, 100);
         }
     },
     
@@ -1511,25 +1504,28 @@ const app = {
         const varGroups = getAllGroups('variables');
         const varSelect = document.getElementById('variables-group-select');
         console.log('Variable groups:', varGroups, 'Active:', app.activeGroups.variables);
-        varSelect.innerHTML = varGroups.map(g => 
+        varSelect.innerHTML = varGroups.map(g =>
             `<option value="${g}" ${g === app.activeGroups.variables ? 'selected' : ''}>${g}</option>`
         ).join('');
-        
+        varSelect.value = app.activeGroups.variables;
+
         // Render Requests Group Selector
         const reqGroups = getAllGroups('requests');
         const reqSelect = document.getElementById('requests-group-select');
         console.log('Request groups:', reqGroups, 'Active:', app.activeGroups.requests);
-        reqSelect.innerHTML = reqGroups.map(g => 
+        reqSelect.innerHTML = reqGroups.map(g =>
             `<option value="${g}" ${g === app.activeGroups.requests ? 'selected' : ''}>${g}</option>`
         ).join('');
-        
+        reqSelect.value = app.activeGroups.requests;
+
         // Render Scripts Group Selector
         const scriptGroups = getAllGroups('scripts');
         const scriptSelect = document.getElementById('scripts-group-select');
         console.log('Script groups:', scriptGroups, 'Active:', app.activeGroups.scripts);
-        scriptSelect.innerHTML = scriptGroups.map(g => 
+        scriptSelect.innerHTML = scriptGroups.map(g =>
             `<option value="${g}" ${g === app.activeGroups.scripts ? 'selected' : ''}>${g}</option>`
         ).join('');
+        scriptSelect.value = app.activeGroups.scripts;
     },
 
     renderTabTitles() {
@@ -1732,7 +1728,7 @@ const app = {
             return;
         }
 
-        // Use custom input dialog to get new name
+        // Use custom input dialog to get new name (pre-fill with current name)
         app.inputDialog.show(
             'Rename Group',
             `Enter a new name for the '${currentGroup}' group:`,
@@ -1779,7 +1775,8 @@ const app = {
                 } else {
                     alert('Failed to rename group. Please try again.');
                 }
-            }
+            },
+            currentGroup
         );
     },
 
