@@ -10,13 +10,13 @@
 import { createJSONEditor } from 'vanilla-jsoneditor';
 
 // Import all required functions and variables from specialized modules.
-import { 
-    loadVariableStore, 
-    saveVariableStore, 
-    getAllRequests, 
-    saveRequest, 
-    getAllScripts, 
-    saveScript, 
+import {
+    loadVariableStore,
+    saveVariableStore,
+    getAllRequests,
+    saveRequest,
+    getAllScripts,
+    saveScript,
     exportAllData,
     saveCollection,
     STORAGE_KEYS,
@@ -26,7 +26,8 @@ import {
     getAllGroups,
     addGroupName,
     loadGroupNames,
-    saveGroupNames
+    saveGroupNames,
+    renameGroup
 } from './storage.js';
 
 import { 
@@ -1618,18 +1619,19 @@ const app = {
     setupGroupMenus() {
         // Setup dropdown toggles for each section
         const menuConfigs = [
-            { menuBtn: 'var-group-menu-btn', menu: 'var-group-menu', deleteBtn: 'delete-var-group-btn', type: 'variables' },
-            { menuBtn: 'request-group-menu-btn', menu: 'request-group-menu', deleteBtn: 'delete-request-group-btn', type: 'requests' },
-            { menuBtn: 'script-group-menu-btn', menu: 'script-group-menu', deleteBtn: 'delete-script-group-btn', type: 'scripts' }
+            { menuBtn: 'var-group-menu-btn', menu: 'var-group-menu', renameBtn: 'rename-var-group-btn', deleteBtn: 'delete-var-group-btn', type: 'variables' },
+            { menuBtn: 'request-group-menu-btn', menu: 'request-group-menu', renameBtn: 'rename-request-group-btn', deleteBtn: 'delete-request-group-btn', type: 'requests' },
+            { menuBtn: 'script-group-menu-btn', menu: 'script-group-menu', renameBtn: 'rename-script-group-btn', deleteBtn: 'delete-script-group-btn', type: 'scripts' }
         ];
-        
+
         menuConfigs.forEach(config => {
             const menuBtn = document.getElementById(config.menuBtn);
             const menu = document.getElementById(config.menu);
+            const renameBtn = document.getElementById(config.renameBtn);
             const deleteBtn = document.getElementById(config.deleteBtn);
-            
-            if (!menuBtn || !menu || !deleteBtn) return;
-            
+
+            if (!menuBtn || !menu || !renameBtn || !deleteBtn) return;
+
             // Toggle dropdown menu
             menuBtn.onclick = (e) => {
                 e.stopPropagation();
@@ -1643,14 +1645,20 @@ const app = {
                 // Toggle current menu
                 menu.classList.toggle('hidden');
             };
-            
+
+            // Rename group action
+            renameBtn.onclick = () => {
+                menu.classList.add('hidden');
+                app.renameGroupUI(config.type);
+            };
+
             // Delete group action
             deleteBtn.onclick = () => {
                 menu.classList.add('hidden');
                 app.deleteGroup(config.type);
             };
         });
-        
+
         // Close dropdowns when clicking outside
         document.addEventListener('click', (e) => {
             menuConfigs.forEach(config => {
@@ -1713,6 +1721,66 @@ const app = {
         }
         
         console.log(`Group '${currentGroup}' deleted successfully`);
+    },
+
+    renameGroupUI(type) {
+        const currentGroup = app.activeGroups[type];
+
+        // Prevent renaming the default 'global' group
+        if (currentGroup === DEFAULT_GROUP) {
+            alert(`Cannot rename the default '${DEFAULT_GROUP}' group.`);
+            return;
+        }
+
+        // Use custom input dialog to get new name
+        app.inputDialog.show(
+            'Rename Group',
+            `Enter a new name for the '${currentGroup}' group:`,
+            currentGroup,
+            (newName) => {
+                const trimmedName = newName.trim();
+
+                // Validate new name
+                if (!trimmedName) {
+                    alert('Group name cannot be empty.');
+                    return;
+                }
+
+                if (trimmedName === currentGroup) {
+                    // No change, just return
+                    return;
+                }
+
+                // Check if new name already exists
+                const existingGroups = getAllGroups(type);
+                if (existingGroups.includes(trimmedName)) {
+                    alert('A group with that name already exists.');
+                    return;
+                }
+
+                // Attempt to rename the group
+                const success = renameGroup(type, currentGroup, trimmedName);
+
+                if (success) {
+                    // Update the active group reference in app state
+                    app.activeGroups[type] = trimmedName;
+
+                    // Refresh UI
+                    app.renderGroupSelectors();
+                    app.renderTabTitles();
+
+                    if (type === 'variables') {
+                        app.renderVariableStore();
+                    } else if (type === 'requests' || type === 'scripts') {
+                        app.renderCollections();
+                    }
+
+                    console.log(`Group renamed from '${currentGroup}' to '${trimmedName}'`);
+                } else {
+                    alert('Failed to rename group. Please try again.');
+                }
+            }
+        );
     },
 
     renderHeaders() {

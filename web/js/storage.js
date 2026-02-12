@@ -366,6 +366,77 @@ function addGroupName(type, groupName) {
 }
 
 /**
+ * Renames a group and updates all associated items.
+ * @param {string} type - One of 'variables', 'requests', 'scripts'
+ * @param {string} oldName - The current group name
+ * @param {string} newName - The new group name
+ * @return {boolean} True if successful, false otherwise
+ */
+function renameGroup(type, oldName, newName) {
+  if (!oldName || !newName || oldName === newName) {
+    return false;
+  }
+
+  // Prevent renaming the default 'global' group
+  if (oldName === DEFAULT_GROUP) {
+    return false;
+  }
+
+  // Check if new name already exists
+  const groupNames = loadGroupNames();
+  if (groupNames[type] && groupNames[type].includes(newName)) {
+    return false;
+  }
+
+  // Update group name in the stored list
+  if (groupNames[type]) {
+    const index = groupNames[type].indexOf(oldName);
+    if (index !== -1) {
+      groupNames[type][index] = newName;
+      groupNames[type].sort();
+      saveGroupNames(groupNames);
+    }
+  }
+
+  // Update all items in this group
+  if (type === 'variables') {
+    const varStore = loadVariableStore();
+    if (varStore[oldName]) {
+      varStore[newName] = varStore[oldName];
+      delete varStore[oldName];
+      saveVariableStore(varStore);
+    }
+  } else if (type === 'requests') {
+    const allRequests = loadCollection(STORAGE_KEYS.REQUESTS);
+    const updatedRequests = allRequests.map(r => {
+      if (r.group === oldName) {
+        return { ...r, group: newName };
+      }
+      return r;
+    });
+    saveCollection(STORAGE_KEYS.REQUESTS, updatedRequests);
+  } else if (type === 'scripts') {
+    const allScripts = loadCollection(STORAGE_KEYS.SCRIPTS);
+    const updatedScripts = allScripts.map(s => {
+      if (s.group === oldName) {
+        return { ...s, group: newName };
+      }
+      return s;
+    });
+    saveCollection(STORAGE_KEYS.SCRIPTS, updatedScripts);
+  }
+
+  // Update active group if it was the renamed one
+  const activeGroups = loadActiveGroups();
+  if (activeGroups[type] === oldName) {
+    activeGroups[type] = newName;
+    saveActiveGroups(activeGroups);
+  }
+
+  return true;
+}
+
+/**
  * Gets all unique group names for a collection type.
  * @param {string} type - One of 'variables', 'requests', 'scripts'
  * @return {Array<string>} Array of unique group names
@@ -433,5 +504,6 @@ export {
   getAllGroups,
   addGroupName,
   loadGroupNames,
-  saveGroupNames
+  saveGroupNames,
+  renameGroup
 };
