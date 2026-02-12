@@ -1140,12 +1140,13 @@ const app = {
         
         app.elements.variablesList.innerHTML = Object.entries(vars).length > 0
             ? Object.entries(vars).map(([key, value]) => `
-                <div class="variable-item bg-gray-100 p-2 rounded-lg hover:bg-gray-200 transition" data-var-key="${key}">
-                    <div class="variable-display flex justify-between items-center cursor-pointer">
+                <div class="variable-item bg-gray-100 p-2 rounded-lg hover:bg-gray-200 transition cursor-move" data-var-key="${key}" draggable="true">
+                    <div class="variable-display flex justify-between items-center">
+                        <span class="drag-handle text-gray-400 mr-2 select-none">⋮⋮</span>
                         <span class="font-mono text-xs text-gray-700 font-semibold">${key}</span>
                         <span class="font-mono text-xs text-blue-600 truncate flex-1 mx-2">${value}</span>
                         <button data-delete-var="${key}" class="delete-var-btn text-red-500 hover:text-red-700 ml-2 text-xs">X</button>
-            </div>
+                    </div>
                     <div class="variable-edit hidden mt-2">
                         <div class="flex space-x-2">
                             <input type="text" class="edit-var-key flex-1 p-2 border rounded-lg text-xs font-mono" value="${key}" placeholder="Key">
@@ -1161,6 +1162,11 @@ const app = {
             : (searchTerm 
                 ? '<p class="text-gray-500 text-xs">No variables match your search.</p>'
                 : '<p class="text-gray-500 text-xs">No variables in this group.</p>');
+        
+        // Attach drag handlers for variables list
+        if (Object.entries(vars).length > 0) {
+            app.attachSidebarDragHandlers('variables');
+        }
     },
     
     editVariable(key) {
@@ -1345,6 +1351,155 @@ const app = {
         } else {
             app.currentRequest.postScriptIds = app.currentRequest.postScriptIds.filter(id => id !== scriptId);
             app.renderPostScriptsList();
+        }
+    },
+    
+    // --- Sidebar Drag-and-Drop ---
+    
+    /**
+     * Attaches drag-and-drop reordering handlers to sidebar list items.
+     * @param {string} listType - One of 'requests', 'scripts', 'variables'
+     */
+    attachSidebarDragHandlers(listType) {
+        const containerMap = {
+            requests: app.elements.requestsList,
+            scripts: app.elements.scriptsList,
+            variables: app.elements.variablesList
+        };
+        const container = containerMap[listType];
+        if (!container) return;
+        
+        const itemSelector = listType === 'variables' ? '.variable-item' : '.sidebar-list-item';
+        const items = container.querySelectorAll(itemSelector);
+        
+        let draggedItem = null;
+        
+        items.forEach(item => {
+            item.addEventListener('dragstart', (e) => {
+                draggedItem = item;
+                item.classList.add('opacity-50');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            
+            item.addEventListener('dragend', (e) => {
+                item.classList.remove('opacity-50');
+                // Save the new order when drag ends
+                if (draggedItem) {
+                    app.saveSidebarListOrder(listType, itemSelector);
+                }
+                draggedItem = null;
+            });
+            
+            item.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                
+                if (!draggedItem || draggedItem === item) return;
+                
+                const afterElement = app.getSidebarDragAfterElement(container, e.clientY, itemSelector);
+                if (afterElement == null) {
+                    container.appendChild(draggedItem);
+                } else {
+                    container.insertBefore(draggedItem, afterElement);
+                }
+            });
+        });
+    },
+    
+    /**
+     * Helper function to determine insertion position during drag.
+     */
+    getSidebarDragAfterElement(container, y, itemSelector) {
+        const draggableElements = [...container.querySelectorAll(`${itemSelector}:not(.opacity-50)`)];
+        
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    },
+    
+    /**
+     * Saves the new order of sidebar list items after drag-and-drop.
+     */
+    saveSidebarListOrder(listType, itemSelector) {
+        const containerMap = {
+            requests: app.elements.requestsList,
+            scripts: app.elements.scriptsList,
+            variables: app.elements.variablesList
+        };
+        const container = containerMap[listType];
+        if (!container) return;
+        
+        const items = container.querySelectorAll(itemSelector);
+        
+        if (listType === 'requests') {
+            const newOrder = Array.from(items).map(item => 
+                item.querySelector('[data-load-request]')?.getAttribute('data-load-request')
+            ).filter(Boolean);
+            
+            // Reorder the requests array
+            const allRequests = getAllRequests();
+            const activeGroup = app.activeGroups.requests;
+            
+            // Get requests not in active group (preserve their position)
+            const otherRequests = allRequests.filter(r => r.group !== activeGroup);
+            
+            // Reorder active group requests based on newOrder
+            const reorderedActiveRequests = newOrder.map(id => 
+                allRequests.find(r => r.id === id)
+            ).filter(Boolean);
+            
+            // Combine: other groups + reordered active group
+            const reorderedRequests = [...otherRequests, ...reorderedActiveRequests];
+            saveCollection(STORAGE_KEYS.REQUESTS, reorderedRequests);
+            
+        } else if (listType === 'scripts') {
+            const newOrder = Array.from(items).map(item => 
+                item.querySelector('[data-load-script]')?.getAttribute('data-load-script')
+            ).filter(Boolean);
+            
+            // Reorder the scripts array
+            const allScripts = getAllScripts();
+            const activeGroup = app.activeGroups.scripts;
+            
+            // Get scripts not in active group (preserve their position)
+            const otherScripts = allScripts.filter(s => s.group !== activeGroup);
+            
+            // Reorder active group scripts based on newOrder
+            const reorderedActiveScripts = newOrder.map(id => 
+                allScripts.find(s => s.id === id)
+            ).filter(Boolean);
+            
+            // Combine: other groups + reordered active group
+            const reorderedScripts = [...otherScripts, ...reorderedActiveScripts];
+            saveCollection(STORAGE_KEYS.SCRIPTS, reorderedScripts);
+            
+        } else if (listType === 'variables') {
+            const newOrder = Array.from(items).map(item => 
+                item.getAttribute('data-var-key')
+            ).filter(Boolean);
+            
+            // Reorder variables in the active group
+            const varStore = getVariableStore();
+            const activeGroup = app.activeGroups.variables;
+            const currentVars = varStore[activeGroup] || {};
+            
+            // Create new object with reordered keys
+            const reorderedVars = {};
+            newOrder.forEach(key => {
+                if (currentVars.hasOwnProperty(key)) {
+                    reorderedVars[key] = currentVars[key];
+                }
+            });
+            
+            varStore[activeGroup] = reorderedVars;
+            saveVariableStore(varStore);
         }
     },
     
@@ -1596,7 +1751,8 @@ const app = {
         
         app.elements.requestsList.innerHTML = requests.length > 0
             ? requests.map(r => `
-                <div class="w-full p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition text-sm flex justify-between items-center">
+                <div class="sidebar-list-item w-full p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition text-sm flex justify-between items-center cursor-move" draggable="true">
+                    <span class="drag-handle text-gray-400 mr-2 select-none">⋮⋮</span>
                     <button data-load-request="${r.id}" class="load-request-btn flex-1 text-left flex justify-between items-center">
                         <span>${r.title}</span>
                         <span class="text-xs font-mono text-gray-500">${r.method}</span>
@@ -1607,6 +1763,11 @@ const app = {
             : (requestSearchTerm 
                 ? '<p class="text-gray-500 text-xs">No requests match your search.</p>'
                 : '<p class="text-gray-500 text-xs">No requests in this group.</p>');
+        
+        // Attach drag handlers for requests list
+        if (requests.length > 0) {
+            app.attachSidebarDragHandlers('requests');
+        }
 
         // Render Scripts List and Select (filtered by active group and search term)
         const allScripts = getAllScripts();
@@ -1621,7 +1782,8 @@ const app = {
         
         app.elements.scriptsList.innerHTML = scripts.length > 0
             ? scripts.map(s => `
-                <div class="w-full p-2 bg-purple-100 hover:bg-purple-200 rounded-lg transition text-sm flex justify-between items-center">
+                <div class="sidebar-list-item w-full p-2 bg-purple-100 hover:bg-purple-200 rounded-lg transition text-sm flex justify-between items-center cursor-move" draggable="true">
+                    <span class="drag-handle text-gray-400 mr-2 select-none">⋮⋮</span>
                     <button data-load-script="${s.id}" class="load-script-btn flex-1 text-left">
                         <span>${s.name}</span>
                     </button>
@@ -1631,6 +1793,11 @@ const app = {
             : (scriptSearchTerm 
                 ? '<p class="text-gray-500 text-xs">No scripts match your search.</p>'
                 : '<p class="text-gray-500 text-xs">No scripts in this group.</p>');
+        
+        // Attach drag handlers for scripts list
+        if (scripts.length > 0) {
+            app.attachSidebarDragHandlers('scripts');
+        }
 
         // Filter scripts for comboboxes: only active scripts group + global group
         const filteredScriptsForCombobox = allScripts.filter(s => 
