@@ -427,10 +427,9 @@ function renameGroup(type, oldName, newName) {
   }
 
   // Update active group if it was the renamed one
-  const activeGroups = loadActiveGroups();
+  const activeGroups = getActiveGroups();
   if (activeGroups[type] === oldName) {
-    activeGroups[type] = newName;
-    saveActiveGroups(activeGroups);
+    setActiveGroup(type, newName);
   }
 
   return true;
