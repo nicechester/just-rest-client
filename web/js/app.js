@@ -58,9 +58,9 @@ loadInitialVariables(loadVariableStore, saveVariableStore);
 
 // Script Combobox Class for type-ahead functionality
 class ScriptCombobox {
-    constructor(inputId, dropdownId, onSelect) {
-        this.input = document.getElementById(inputId);
-        this.dropdown = document.getElementById(dropdownId);
+    constructor(inputEl, dropdownEl, onSelect) {
+        this.input = typeof inputEl === 'string' ? document.getElementById(inputEl) : inputEl;
+        this.dropdown = typeof dropdownEl === 'string' ? document.getElementById(dropdownEl) : dropdownEl;
         this.onSelect = onSelect;
         this.allScripts = [];
         this.highlightedIndex = -1;
@@ -218,119 +218,112 @@ class ScriptCombobox {
 }
 
 const app = {
-    currentRequest: {
-        id: null,
-        title: 'New Request',
-        url: '',
-        method: 'GET',
-        rawHeaders: [{ key: '', value: '' }],
-        body: '',
-        preScriptIds: [], // Changed from single ID to array
-        postScriptIds: [], // Changed from single ID to array
-        group: DEFAULT_GROUP
+    // --- Multi-tab state ---
+    tabs: [],          // array of tab objects
+    activeTabId: null, // id of the currently active tab
+
+    _tabCounter: 0,
+
+    _newTabData() {
+        return {
+            id: `tab-${++app._tabCounter}`,
+            request: {
+                id: null,
+                title: 'New Request',
+                url: '',
+                method: 'GET',
+                rawHeaders: [{ key: '', value: '' }],
+                body: '',
+                preScriptIds: [],
+                postScriptIds: [],
+                group: DEFAULT_GROUP,
+                originalTitle: null
+            },
+            result: null,          // null = no result yet
+            jsonEditor: null,      // per-tab JSON editor instance
+            requestBodyEditor: null // per-tab request body editor
+        };
     },
-    
+
+    // Convenience getter for the active tab object
+    get activeTab() {
+        return app.tabs.find(t => t.id === app.activeTabId) || null;
+    },
+
+    // Convenience getter/setter that proxies to activeTab.request
+    get currentRequest() {
+        return app.activeTab ? app.activeTab.request : {};
+    },
+    set currentRequest(val) {
+        if (app.activeTab) app.activeTab.request = val;
+    },
+
     currentScript: {
         id: null,
         name: 'Untitled Script',
         code: '',
         group: DEFAULT_GROUP
     },
-    
-    currentPreScript: {
-        id: null,
-        name: 'Untitled Pre-Script',
-        code: '',
-        group: DEFAULT_GROUP
-    },
-    
+
     currentSidebarTab: 'variables',
-    currentMainTab: 'request',
-    
+
     // Active groups for each collection type
     activeGroups: {
         variables: DEFAULT_GROUP,
         requests: DEFAULT_GROUP,
         scripts: DEFAULT_GROUP
     },
-    
-    // CodeMirror editor instances
+
+    // CodeMirror editor instances (legacy — kept for script editor dialog)
     codeMirrorEditors: {
         preScript: null,
         postScript: null
     },
-    
-    // JSON Editor instances
-    jsonEditor: null, // For response viewer (read-only)
-    requestBodyEditor: null, // For request body (editable)
+
+    // Legacy aliases — now per-tab, but kept so existing code paths don't break
+    get jsonEditor() { return app.activeTab ? app.activeTab.jsonEditor : null; },
+    set jsonEditor(v) { if (app.activeTab) app.activeTab.jsonEditor = v; },
+    get requestBodyEditor() { return app.activeTab ? app.activeTab.requestBodyEditor : null; },
+    set requestBodyEditor(v) { if (app.activeTab) app.activeTab.requestBodyEditor = v; },
     
     // Helper methods for request body
-    getRequestBody() {
-        if (app.requestBodyEditor) {
-            try {
-                const content = app.requestBodyEditor.get();
-                // Handle both JSON and text modes
-                if (content.json !== undefined) {
-                    return JSON.stringify(content.json);
-                }
-                return content.text || '';
-            } catch (e) {
-                return '';
-            }
-        }
-        return '';
+    getRequestBody(tab) {
+        const t = tab || app.activeTab;
+        if (!t) return '';
+        const panelEl = document.getElementById(`tab-panel-${t.id}`);
+        const textarea = panelEl && panelEl.querySelector('#request-body-editor');
+        return textarea ? textarea.value : '';
     },
-    
-    setRequestBody(bodyContent) {
-        if (app.requestBodyEditor) {
-            try {
-                // Try to parse as JSON first
-                if (bodyContent && bodyContent.trim()) {
-                    const parsed = JSON.parse(bodyContent);
-                    app.requestBodyEditor.set({ json: parsed });
-                } else {
-                    app.requestBodyEditor.set({ text: bodyContent || '' });
-                }
-            } catch (e) {
-                // Not valid JSON, set as text
-                app.requestBodyEditor.set({ text: bodyContent || '' });
-            }
-        }
+
+    setRequestBody(bodyContent, tab) {
+        const t = tab || app.activeTab;
+        if (!t) return;
+        const panelEl = document.getElementById(`tab-panel-${t.id}`);
+        const textarea = panelEl && panelEl.querySelector('#request-body-editor');
+        if (textarea) textarea.value = bodyContent || '';
     },
     
     toggleResponseFullscreen() {
-        const wrapper = document.getElementById('response-body-wrapper');
-        const button = document.getElementById('response-fullscreen-btn');
+        const tabId = app.activeTabId;
+        const wrapper = document.querySelector(`#tab-panel-${tabId} #response-body-wrapper`);
+        const button = document.querySelector(`#tab-panel-${tabId} #response-fullscreen-btn`);
+        if (!wrapper || !button) return;
         const icon = button.querySelector('.fullscreen-icon');
-        const container = document.getElementById('json-editor-container');
-        
+        const container = wrapper.querySelector('#json-editor-container');
+
         if (wrapper.classList.contains('fullscreen')) {
-            // Exit fullscreen
             wrapper.classList.remove('fullscreen');
             icon.textContent = '⛶';
             button.title = 'Toggle Fullscreen';
-            
-            // Force editor container to recalculate size
             setTimeout(() => {
-                if (container) {
-                    container.style.height = localStorage.getItem('editor-height-json-editor-container') || '400px';
-                }
-                // Trigger window resize event to let editor adjust
+                if (container) container.style.height = localStorage.getItem('editor-height-json-editor-container') || '400px';
                 window.dispatchEvent(new Event('resize'));
             }, 100);
         } else {
-            // Enter fullscreen
             wrapper.classList.add('fullscreen');
             icon.textContent = '✕';
             button.title = 'Exit Fullscreen (Esc)';
-            
-            // Force editor to fill fullscreen
-            setTimeout(() => {
-                // Trigger window resize event to let editor adjust
-                window.dispatchEvent(new Event('resize'));
-            }, 100);
-            
-            // Add escape key listener
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
             const escapeHandler = (e) => {
                 if (e.key === 'Escape' && wrapper.classList.contains('fullscreen')) {
                     app.toggleResponseFullscreen();
@@ -341,101 +334,50 @@ const app = {
         }
     },
     
-    initResizeHandles() {
-        const handles = document.querySelectorAll('.resize-handle');
-        
+    initResizeHandles(panelEl) {
+        const handles = panelEl.querySelectorAll('.resize-handle');
         handles.forEach(handle => {
             let isResizing = false;
             let startY = 0;
             let startHeight = 0;
             let targetElement = null;
-            let codeMirrorElement = null;
-            
+
             handle.addEventListener('mousedown', (e) => {
                 isResizing = true;
                 startY = e.clientY;
-                
                 const targetId = handle.dataset.target;
-                targetElement = document.getElementById(targetId);
-                
+                targetElement = panelEl.querySelector(`#${targetId}`);
                 if (targetElement) {
-                    // Check if this is a CodeMirror editor (textarea with CodeMirror wrapper)
-                    const cmWrapper = targetElement.nextElementSibling;
-                    if (cmWrapper && cmWrapper.classList.contains('CodeMirror')) {
-                        codeMirrorElement = cmWrapper;
-                        startHeight = codeMirrorElement.offsetHeight;
-                    } else {
-                        codeMirrorElement = null;
-                        startHeight = targetElement.offsetHeight;
-                    }
-                    
+                    startHeight = targetElement.offsetHeight;
                     document.body.style.cursor = 'ns-resize';
                     document.body.style.userSelect = 'none';
                 }
-                
                 e.preventDefault();
             });
-            
+
             document.addEventListener('mousemove', (e) => {
                 if (!isResizing || !targetElement) return;
-                
-                const deltaY = e.clientY - startY;
-                const newHeight = Math.max(150, startHeight + deltaY); // Min height 150px
-                
-                // Resize CodeMirror wrapper if it exists, otherwise resize target element
-                if (codeMirrorElement) {
-                    codeMirrorElement.style.height = `${newHeight}px`;
-                    
-                    // Refresh CodeMirror
-                    const targetId = targetElement.id;
-                    if (targetId === 'pre-script-editor' && app.codeMirrorEditors.preScript) {
-                        app.codeMirrorEditors.preScript.setSize(null, newHeight);
-                    } else if (targetId === 'post-script-editor' && app.codeMirrorEditors.postScript) {
-                        app.codeMirrorEditors.postScript.setSize(null, newHeight);
-                    }
-                } else {
-                    targetElement.style.height = `${newHeight}px`;
-                }
+                const newHeight = Math.max(50, startHeight + (e.clientY - startY));
+                targetElement.style.height = `${newHeight}px`;
             });
-            
+
             document.addEventListener('mouseup', () => {
                 if (isResizing) {
                     isResizing = false;
                     document.body.style.cursor = '';
                     document.body.style.userSelect = '';
-                    
-                    // Save height to localStorage
                     if (targetElement) {
-                        const targetId = targetElement.id;
-                        const actualHeight = codeMirrorElement ? 
-                            codeMirrorElement.style.height : 
-                            targetElement.style.height;
-                        localStorage.setItem(`editor-height-${targetId}`, actualHeight);
+                        localStorage.setItem(`editor-height-${targetElement.id}`, targetElement.style.height);
                     }
                 }
             });
         });
-        
+
         // Restore saved heights
-        const editors = ['request-body-editor', 'pre-script-editor', 'post-script-editor', 'json-editor-container'];
-        editors.forEach(editorId => {
+        ['request-body-editor', 'json-editor-container'].forEach(editorId => {
             const savedHeight = localStorage.getItem(`editor-height-${editorId}`);
-            const element = document.getElementById(editorId);
-            if (savedHeight && element) {
-                // Check if this is a CodeMirror editor
-                const cmWrapper = element.nextElementSibling;
-                if (cmWrapper && cmWrapper.classList.contains('CodeMirror')) {
-                    cmWrapper.style.height = savedHeight;
-                    // Update CodeMirror size
-                    if (editorId === 'pre-script-editor' && app.codeMirrorEditors.preScript) {
-                        app.codeMirrorEditors.preScript.setSize(null, parseInt(savedHeight));
-                    } else if (editorId === 'post-script-editor' && app.codeMirrorEditors.postScript) {
-                        app.codeMirrorEditors.postScript.setSize(null, parseInt(savedHeight));
-                    }
-                } else {
-                    element.style.height = savedHeight;
-                }
-            }
+            const element = panelEl.querySelector(`#${editorId}`);
+            if (savedHeight && element) element.style.height = savedHeight;
         });
     },
     
@@ -999,42 +941,28 @@ const app = {
      * @param {object} parsed - Parsed cURL data
      */
     populateRequestFromParsedCurl(parsed) {
-        // Set URL
-        if (parsed.url) {
-            app.elements.urlInput.value = parsed.url;
-        }
-        
-        // Set method
-        if (parsed.method) {
-            app.elements.methodSelect.value = parsed.method;
-        }
-        
-        // Set headers
+        if (!app.activeTab) app.createTab();
+        const tab = app.activeTab;
+        const panelEl = document.getElementById(`tab-panel-${tab.id}`);
+
+        if (parsed.url) { panelEl.querySelector('#url-input').value = parsed.url; tab.request.url = parsed.url; }
+        if (parsed.method) { panelEl.querySelector('#method-select').value = parsed.method; tab.request.method = parsed.method; }
         if (parsed.headers && parsed.headers.length > 0) {
-            app.currentRequest.rawHeaders = [...parsed.headers, { key: '', value: '' }];
+            tab.request.rawHeaders = [...parsed.headers, { key: '', value: '' }];
             app.renderHeaders();
         }
-        
-        // Set body
-        if (parsed.body) {
-            app.setRequestBody(parsed.body);
-        }
-        
-        // Clear request ID, title, group, and scripts (this is a new request)
-        app.currentRequest.id = null;
-        app.currentRequest.group = app.activeGroups.requests; // Set to current active group
-        app.currentRequest.preScriptIds = [];
-        app.currentRequest.postScriptIds = [];
-        app.currentRequest.originalTitle = null; // New request from cURL
-        app.elements.requestTitleInput.value = 'Imported from cURL';
-        if (app.preScriptCombobox) app.preScriptCombobox.clear();
-        if (app.postScriptCombobox) app.postScriptCombobox.clear();
-        
+        if (parsed.body) app.setRequestBody(parsed.body);
+
+        tab.request.id = null;
+        tab.request.title = 'Imported from cURL';
+        tab.request.group = app.activeGroups.requests;
+        tab.request.preScriptIds = [];
+        tab.request.postScriptIds = [];
+        tab.request.originalTitle = null;
+        panelEl.querySelector('#request-title-input').value = 'Imported from cURL';
         app.renderPreScriptsList();
         app.renderPostScriptsList();
-        
-        // Switch to Request Builder tab if not already there
-        app.switchMainTab('request');
+        app.renderTabBar();
     },
     
     applyTemplateToString(str) {
@@ -1085,33 +1013,373 @@ const app = {
     },
 
     elements: {
-        // Request Inputs
-        urlInput: document.getElementById('url-input'),
-        methodSelect: document.getElementById('method-select'),
-        headersContainer: document.getElementById('headers-container'),
-        requestTitleInput: document.getElementById('request-title-input'),
-        
-        // Scripting
-        preScriptInput: document.getElementById('pre-script-input'),
-        postScriptInput: document.getElementById('post-script-input'),
-        preScriptDropdown: document.getElementById('pre-script-dropdown'),
-        postScriptDropdown: document.getElementById('post-script-dropdown'),
-        preScriptsList: document.getElementById('pre-scripts-list'),
-        postScriptsList: document.getElementById('post-scripts-list'),
-        scriptSearchInput: document.getElementById('script-search-input'),
-
-        // Search Inputs
+        // These are now resolved dynamically from the active tab panel
+        get urlInput() { return app._activeEl('url-input'); },
+        get methodSelect() { return app._activeEl('method-select'); },
+        get headersContainer() { return app._activeEl('headers-container'); },
+        get requestTitleInput() { return app._activeEl('request-title-input'); },
+        get preScriptInput() { return app._activeEl('pre-script-input'); },
+        get postScriptInput() { return app._activeEl('post-script-input'); },
+        get preScriptDropdown() { return app._activeEl('pre-script-dropdown'); },
+        get postScriptDropdown() { return app._activeEl('post-script-dropdown'); },
+        get preScriptsList() { return app._activeEl('pre-scripts-list'); },
+        get postScriptsList() { return app._activeEl('post-scripts-list'); },
+        get responseStatus() { return app._activeEl('response-status'); },
+        get responseTime() { return app._activeEl('response-time'); },
+        // Sidebar elements are global (not per-tab)
         variableSearchInput: document.getElementById('variable-search-input'),
         requestSearchInput: document.getElementById('request-search-input'),
-
-        // UI Lists
+        scriptSearchInput: document.getElementById('script-search-input'),
         variablesList: document.getElementById('variables-list'),
         requestsList: document.getElementById('requests-list'),
         scriptsList: document.getElementById('scripts-list'),
+    },
 
-        // Response Outputs
-        responseStatus: document.getElementById('response-status'),
-        responseTime: document.getElementById('response-time'),
+    // Helper: find an element within the active tab panel
+    _activeEl(id) {
+        if (!app.activeTabId) return document.getElementById(id);
+        const panel = document.getElementById(`tab-panel-${app.activeTabId}`);
+        return panel ? panel.querySelector(`#${id}`) : document.getElementById(id);
+    },
+
+    // --- Tab Management ---
+
+    _tabLabel(tab) {
+        const method = tab.request.method || 'GET';
+        const title = tab.request.title && tab.request.title !== 'New Request'
+            ? tab.request.title
+            : (tab.request.url ? tab.request.url.replace(/^https?:\/\//, '').substring(0, 30) : 'New Request');
+        return { method, title };
+    },
+
+    renderTabBar() {
+        const bar = document.getElementById('request-tab-bar');
+        const addBtn = document.getElementById('new-tab-btn');
+
+        // Remove old tab elements (keep the + button)
+        bar.querySelectorAll('.request-tab').forEach(el => el.remove());
+
+        app.tabs.forEach(tab => {
+            const { method, title } = app._tabLabel(tab);
+            const el = document.createElement('div');
+            el.className = 'request-tab' + (tab.id === app.activeTabId ? ' active' : '');
+            el.dataset.tabId = tab.id;
+            el.innerHTML = `
+                <span class="tab-method">${method}</span>
+                <span class="tab-label" title="${title}">${title}</span>
+                <span class="tab-close" data-close-tab="${tab.id}">×</span>
+            `;
+            el.addEventListener('click', (e) => {
+                if (e.target.dataset.closeTab) {
+                    app.closeTab(e.target.dataset.closeTab);
+                } else {
+                    app.switchTab(tab.id);
+                }
+            });
+            bar.insertBefore(el, addBtn);
+        });
+    },
+
+    _buildTabPanelHTML(tabId) {
+        return `
+        <div id="tab-panel-${tabId}" class="tab-panel-container" style="display:none">
+            <div class="tab-panel-scroll bg-white p-6 space-y-4">
+                <!-- Save Request -->
+                <div class="flex space-x-2 pb-4 border-b">
+                    <input type="text" id="request-title-input" placeholder="Request Title" class="flex-1 p-3 border rounded-lg text-sm focus:ring-green-500 focus:border-green-500">
+                    <button class="save-request-btn bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 transition text-sm min-w-[80px]">Save</button>
+                </div>
+                <div class="space-y-2">
+                    <div class="flex space-x-2">
+                        <select id="method-select" class="w-32 p-3 border rounded-lg bg-gray-100 text-sm font-semibold focus:ring-blue-500 focus:border-blue-500">
+                            <option>GET</option><option>POST</option><option>PUT</option>
+                            <option>DELETE</option><option>PATCH</option><option>HEAD</option>
+                        </select>
+                        <textarea id="url-input" placeholder="Enter URL (e.g., {{baseUrl}}/users)" rows="2"
+                            class="flex-1 p-3 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 resize-y font-mono"></textarea>
+                    </div>
+                    <div class="flex justify-end space-x-2">
+                        <button class="import-curl-btn bg-green-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-green-700 transition text-sm">Import cURL</button>
+                        <button class="curl-btn bg-gray-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-gray-700 transition text-sm">cURL</button>
+                        <button class="send-btn bg-blue-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-blue-700 transition text-sm">Send</button>
+                    </div>
+                </div>
+                <!-- Headers -->
+                <div class="border-t pt-4">
+                    <h3 class="font-medium text-gray-600 mb-2">Headers</h3>
+                    <div id="headers-container" class="space-y-2"></div>
+                    <button class="add-header-btn mt-2 text-sm text-blue-600 hover:text-blue-800 transition">+ Add Header</button>
+                </div>
+                <!-- Body -->
+                <div class="border-t pt-4">
+                    <h3 class="font-medium text-gray-600 mb-2">Body (POST/PUT/PATCH)</h3>
+                    <textarea id="request-body-editor" rows="3" class="w-full p-2 border rounded-lg text-sm font-mono focus:ring-blue-500 focus:border-blue-500 resize-y" placeholder="Request body (JSON, form-encoded, GraphQL, etc.)"></textarea>
+                </div>
+                <!-- Pre-Request Scripts -->
+                <div class="border-t pt-4 space-y-2">
+                    <h3 class="font-medium text-gray-600">Pre-Request Scripts</h3>
+                    <div class="script-combobox-wrapper">
+                        <input type="text" id="pre-script-input" class="script-combobox-input w-full p-2 border rounded-lg text-sm" placeholder="Type to search and add scripts..." autocomplete="off">
+                        <div id="pre-script-dropdown" class="script-combobox-dropdown hidden"></div>
+                    </div>
+                    <div id="pre-scripts-list" class="space-y-1 min-h-[40px] p-2 border rounded-lg bg-gray-50">
+                        <p class="text-gray-400 text-xs italic">No pre-request scripts selected</p>
+                    </div>
+                </div>
+                <!-- Post-Request Scripts -->
+                <div class="border-t pt-4 space-y-2">
+                    <h3 class="font-medium text-gray-600">Post-Request Scripts</h3>
+                    <div class="script-combobox-wrapper">
+                        <input type="text" id="post-script-input" class="script-combobox-input w-full p-2 border rounded-lg text-sm" placeholder="Type to search and add scripts..." autocomplete="off">
+                        <div id="post-script-dropdown" class="script-combobox-dropdown hidden"></div>
+                    </div>
+                    <div id="post-scripts-list" class="space-y-1 min-h-[40px] p-2 border rounded-lg bg-gray-50">
+                        <p class="text-gray-400 text-xs italic">No post-request scripts selected</p>
+                    </div>
+                </div>
+                <!-- Result section -->
+                <div class="border-t pt-4">
+                <h2 class="text-lg font-semibold text-gray-700 flex justify-between items-center">
+                    Result
+                    <div class="text-sm font-normal space-x-3">
+                        <span id="response-status" class="font-bold text-gray-500">Status: ---</span>
+                        <span id="response-time" class="text-gray-500">Time: ---ms</span>
+                    </div>
+                </h2>
+                <!-- Response Body (top) -->
+                <div class="border-t pt-4">
+                    <div id="response-body-wrapper">
+                        <div class="flex items-center justify-between mb-2">
+                            <p class="text-sm font-medium text-gray-600">Response Body</p>
+                            <button id="response-fullscreen-btn" class="px-3 py-1 text-xs bg-gray-600 text-white hover:bg-gray-700 rounded transition">
+                                <span class="fullscreen-icon">⛶</span>
+                            </button>
+                        </div>
+                        <div class="resizable-editor-container">
+                            <div id="json-editor-container" class="rounded border border-gray-300" style="height:300px"></div>
+                            <div class="resize-handle" data-target="json-editor-container"></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Request Details -->
+                <div class="border-t pt-4">
+                    <h3 class="font-medium text-gray-600 mb-2 flex items-center">
+                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-bold mr-2">REQUEST</span>
+                        Request Details
+                    </h3>
+                    <div class="bg-gray-50 p-4 rounded-lg space-y-3">
+                        <div><p class="text-xs text-gray-500 mb-1">Request Line</p>
+                            <pre id="request-line" class="bg-gray-800 text-cyan-400 p-2 rounded text-sm font-mono whitespace-pre-wrap"></pre></div>
+                        <div><p class="text-xs text-gray-500 mb-1">Request Headers</p>
+                            <pre id="request-headers" class="bg-gray-100 text-gray-700 p-3 rounded code-output text-xs whitespace-pre-wrap"></pre></div>
+                        <div id="request-body-section" class="hidden">
+                            <p class="text-xs text-gray-500 mb-1">Request Body</p>
+                            <div class="bg-gray-800 p-3 rounded overflow-auto max-h-96">
+                                <pre class="language-json m-0"><code id="request-body-code" class="language-json"></code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Response Details -->
+                <div class="border-t pt-4">
+                    <h3 class="font-medium text-gray-600 mb-2 flex items-center">
+                        <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold mr-2">RESPONSE</span>
+                        Response Details
+                    </h3>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <p class="text-xs text-gray-500 mb-1">Response Headers</p>
+                        <pre id="response-headers" class="bg-gray-100 text-gray-700 p-3 rounded code-output text-xs whitespace-pre-wrap"></pre>
+                    </div>
+                </div>
+                <!-- Script Output -->
+                <div class="border-t pt-4">
+                    <h3 class="font-medium text-gray-600 mb-2">Script Output</h3>
+                    <pre id="script-output" class="bg-yellow-100 text-yellow-800 p-3 rounded-lg code-output text-xs whitespace-pre-wrap"></pre>
+                </div>
+                </div>
+            </div>
+        </div>`;
+    },
+
+    createTab(requestData) {
+        const tab = app._newTabData();
+        if (requestData) tab.request = { ...requestData, originalTitle: requestData.title };
+
+        app.tabs.push(tab);
+
+        // Build DOM
+        const panels = document.getElementById('request-tab-panels');
+        panels.insertAdjacentHTML('beforeend', app._buildTabPanelHTML(tab.id));
+
+        const panelEl = document.getElementById(`tab-panel-${tab.id}`);
+
+        // Init request body as plain textarea (no JSON editor)
+        tab.requestBodyEditor = null;
+        const bodyTextarea = panelEl.querySelector('#request-body-editor');
+        if (requestData && requestData.body) bodyTextarea.value = requestData.body;
+
+        const jsonContainer = panelEl.querySelector('#json-editor-container');
+        tab.jsonEditor = createJSONEditor({
+            target: jsonContainer,
+            props: { mode: 'tree', mainMenuBar: true, navigationBar: true, statusBar: true, readOnly: true }
+        });
+
+        // Init resize handles
+        app.initResizeHandles(panelEl);
+
+        // Wire up per-panel buttons
+        app._wireTabPanel(panelEl, tab);
+
+        // Init script comboboxes for this tab
+        app._initTabScriptComboboxes(tab, panelEl);
+
+        app.switchTab(tab.id);
+        return tab;
+    },
+
+    _wireTabPanel(panelEl, tab) {
+        panelEl.querySelector('.send-btn').onclick = app.handleSend;
+        panelEl.querySelector('.save-request-btn').onclick = app.saveAsNewRequest;
+        panelEl.querySelector('.import-curl-btn').onclick = app.showImportCurlDialog;
+        panelEl.querySelector('.curl-btn').onclick = app.showCurlDialog;
+        panelEl.querySelector('.add-header-btn').onclick = () => {
+            app.currentRequest.rawHeaders.push({ key: '', value: '' });
+            app.renderHeaders();
+        };
+        panelEl.querySelector('#response-fullscreen-btn').onclick = app.toggleResponseFullscreen;
+
+        // URL input: update tab label live
+        panelEl.querySelector('#url-input').addEventListener('input', (e) => {
+            if (app.activeTab && app.activeTab.id === tab.id) {
+                app.activeTab.request.url = e.target.value;
+                app.renderTabBar();
+            }
+        });
+        panelEl.querySelector('#method-select').addEventListener('change', (e) => {
+            if (app.activeTab && app.activeTab.id === tab.id) {
+                app.activeTab.request.method = e.target.value;
+                app.renderTabBar();
+            }
+        });
+        panelEl.querySelector('#request-title-input').addEventListener('input', (e) => {
+            if (app.activeTab && app.activeTab.id === tab.id) {
+                app.activeTab.request.title = e.target.value;
+                app.renderTabBar();
+            }
+        });
+    },
+
+    _initTabScriptComboboxes(tab, panelEl) {
+        tab.preScriptCombobox = new ScriptCombobox(
+            panelEl.querySelector('#pre-script-input'),
+            panelEl.querySelector('#pre-script-dropdown'),
+            (script) => {
+                if (!tab.request.preScriptIds.includes(script.id)) {
+                    tab.request.preScriptIds.push(script.id);
+                    if (app.activeTabId === tab.id) app.renderPreScriptsList();
+                }
+            }
+        );
+        tab.postScriptCombobox = new ScriptCombobox(
+            panelEl.querySelector('#post-script-input'),
+            panelEl.querySelector('#post-script-dropdown'),
+            (script) => {
+                if (!tab.request.postScriptIds.includes(script.id)) {
+                    tab.request.postScriptIds.push(script.id);
+                    if (app.activeTabId === tab.id) app.renderPostScriptsList();
+                }
+            }
+        );
+        // Feed scripts
+        const allScripts = getAllScripts();
+        const filtered = allScripts.filter(s =>
+            s.group === app.activeGroups.scripts || s.group === DEFAULT_GROUP
+        );
+        tab.preScriptCombobox.setScripts(filtered);
+        tab.postScriptCombobox.setScripts(filtered);
+    },
+
+    switchTab(tabId) {
+        app.activeTabId = tabId;
+
+        // Show/hide panels
+        document.querySelectorAll('#request-tab-panels > .tab-panel-container').forEach(el => {
+            el.style.display = el.id === `tab-panel-${tabId}` ? 'flex' : 'none';
+            if (el.style.display === 'flex') el.style.flexDirection = 'column';
+        });
+
+        app.renderTabBar();
+
+        // Populate form fields from tab state
+        const tab = app.activeTab;
+        if (!tab) return;
+        const panelEl = document.getElementById(`tab-panel-${tabId}`);
+        if (!panelEl) return;
+
+        panelEl.querySelector('#url-input').value = tab.request.url || '';
+        panelEl.querySelector('#method-select').value = tab.request.method || 'GET';
+        panelEl.querySelector('#request-title-input').value = tab.request.title || 'New Request';
+        app.renderHeaders();
+        app.renderPreScriptsList();
+        app.renderPostScriptsList();
+
+        // Restore result if any
+        if (tab.result) app._restoreResult(tab, panelEl);
+    },
+
+    _restoreResult(tab, panelEl) {
+        const r = tab.result;
+        if (!r) return;
+        const status = r.status || 'N/A';
+        const statusText = r.statusText || '';
+        const statusColor = status >= 200 && status < 300 ? 'text-green-500' : (status >= 400 ? 'text-red-500' : 'text-gray-500');
+        const statusEl = panelEl.querySelector('#response-status');
+        if (statusEl) { statusEl.className = `font-bold ${statusColor}`; statusEl.textContent = `Status: ${status} ${statusText}`; }
+        const timeEl = panelEl.querySelector('#response-time');
+        if (timeEl) timeEl.textContent = `Time: ${r.duration}ms`;
+        const lineEl = panelEl.querySelector('#request-line');
+        if (lineEl) lineEl.textContent = r.requestLine || '';
+        const reqHEl = panelEl.querySelector('#request-headers');
+        if (reqHEl) reqHEl.textContent = r.requestHeaders || '';
+        const resHEl = panelEl.querySelector('#response-headers');
+        if (resHEl) resHEl.textContent = r.responseHeaders || '';
+        const scriptEl = panelEl.querySelector('#script-output');
+        if (scriptEl) scriptEl.textContent = r.scriptOutput || 'No script output';
+        if (tab.jsonEditor && r.responseData !== undefined) {
+            try {
+                tab.jsonEditor.set({ json: typeof r.responseData === 'string' ? JSON.parse(r.responseData) : r.responseData });
+            } catch (e) {
+                tab.jsonEditor.set({ text: typeof r.responseData === 'string' ? r.responseData : JSON.stringify(r.responseData, null, 2) });
+            }
+        }
+    },
+
+    closeTab(tabId) {
+        const idx = app.tabs.findIndex(t => t.id === tabId);
+        if (idx === -1) return;
+
+        // Destroy response JSON editor
+        if (tab.jsonEditor) try { tab.jsonEditor.destroy(); } catch(e) {}
+
+        // Remove DOM
+        const panelEl = document.getElementById(`tab-panel-${tabId}`);
+        if (panelEl) panelEl.remove();
+
+        app.tabs.splice(idx, 1);
+
+        if (app.tabs.length === 0) {
+            app.createTab(); // always keep at least one tab
+        } else {
+            const nextTab = app.tabs[Math.min(idx, app.tabs.length - 1)];
+            app.switchTab(nextTab.id);
+        }
+    },
+
+    _isTabBlank(tab) {
+        return !tab.request.url && !tab.result &&
+               tab.request.title === 'New Request' &&
+               tab.request.preScriptIds.length === 0 &&
+               tab.request.postScriptIds.length === 0;
     },
 
     // --- UI Rendering ---
@@ -1864,25 +2132,20 @@ const app = {
             app.attachSidebarDragHandlers('scripts');
         }
 
-        // Filter scripts for comboboxes: only active scripts group + global group
-        const filteredScriptsForCombobox = allScripts.filter(s => 
-            s.group === activeScriptGroup || s.group === DEFAULT_GROUP
-        );
-        
-        if (app.preScriptCombobox) {
-            app.preScriptCombobox.setScripts(filteredScriptsForCombobox);
-        }
-        if (app.postScriptCombobox) {
-            app.postScriptCombobox.setScripts(filteredScriptsForCombobox);
-        }
+        // Update script comboboxes in all tabs
+        app.tabs.forEach(tab => {
+            const filtered = allScripts.filter(s =>
+                s.group === activeScriptGroup || s.group === DEFAULT_GROUP
+            );
+            if (tab.preScriptCombobox) tab.preScriptCombobox.setScripts(filtered);
+            if (tab.postScriptCombobox) tab.postScriptCombobox.setScripts(filtered);
+        });
     },
     
     // --- Tab Switching Logic (same as original) ---
 
     switchSidebarTab(tabName) {
         app.currentSidebarTab = tabName;
-
-        // 1. Update Buttons
         document.querySelectorAll('.tab-button').forEach(button => {
             button.classList.remove('active', 'bg-blue-600', 'text-white');
             button.classList.add('text-gray-600', 'hover:bg-gray-100');
@@ -1891,8 +2154,6 @@ const app = {
                 button.classList.remove('text-gray-600', 'hover:bg-gray-100');
             }
         });
-
-        // 2. Update Panels
         document.querySelectorAll('.tab-panel').forEach(panel => {
             if (panel.getAttribute('data-panel') === tabName) {
                 panel.classList.remove('hidden');
@@ -1900,64 +2161,63 @@ const app = {
                 panel.classList.add('hidden');
             }
         });
-        
-        // 3. Refresh content when switching to variables tab
-        if (tabName === 'variables') {
-            app.renderVariableStore();
-        }
+        if (tabName === 'variables') app.renderVariableStore();
     },
-    
-    switchMainTab(tabName) {
-        app.currentMainTab = tabName;
 
-        // 1. Update Buttons
-        document.querySelectorAll('.main-tab-button').forEach(button => {
-            button.classList.remove('active', 'bg-blue-600', 'text-white');
-            button.classList.add('text-gray-600', 'hover:bg-gray-100');
-            if (button.getAttribute('data-main-tab') === tabName) {
-                button.classList.add('active', 'bg-blue-600', 'text-white');
-                button.classList.remove('text-gray-600', 'hover:bg-gray-100');
-            }
-        });
-
-        // 2. Update Panels
-        document.querySelectorAll('.main-panel').forEach(panel => {
-            if (panel.getAttribute('data-panel') === tabName) {
-                panel.classList.remove('hidden');
-            } else {
-                panel.classList.add('hidden');
-            }
-        });
-    },
+    // No-op: kept for any legacy calls (result is now always visible in the bottom half)
+    switchMainTab(_tabName) {},
 
     // --- UI Actions (Exposed to global scope for event handlers) ---
 
     loadRequest(id) {
         const request = getAllRequests().find(r => r.id === id);
-        if (request) {
-            // Migrate old format if needed
-            const preScriptIds = request.preScriptIds || (request.preScriptId ? [request.preScriptId] : []);
-            const postScriptIds = request.postScriptIds || (request.postScriptId ? [request.postScriptId] : []);
-            
-            app.currentRequest = {
-                ...request, 
-                rawHeaders: request.rawHeaders || [{ key: '', value: '' }],
-                preScriptIds: preScriptIds,
-                postScriptIds: postScriptIds,
-                originalTitle: request.title  // Store original title to detect changes
-            };
-            
-            app.elements.urlInput.value = request.url;
-            app.elements.methodSelect.value = request.method;
-            app.setRequestBody(request.body);
-            app.elements.requestTitleInput.value = request.title;
+        if (!request) return;
 
+        // Check if already open in a tab
+        const existing = app.tabs.find(t => t.request.id === id);
+        if (existing) {
+            app.switchTab(existing.id);
+            return;
+        }
+
+        const preScriptIds = request.preScriptIds || (request.preScriptId ? [request.preScriptId] : []);
+        const postScriptIds = request.postScriptIds || (request.postScriptId ? [request.postScriptId] : []);
+        const reqData = {
+            ...request,
+            rawHeaders: request.rawHeaders || [{ key: '', value: '' }],
+            preScriptIds,
+            postScriptIds,
+            originalTitle: request.title
+        };
+
+        // Reuse current tab if blank, otherwise open new tab
+        if (app.activeTab && app._isTabBlank(app.activeTab)) {
+            app.activeTab.request = reqData;
+            const panelEl = document.getElementById(`tab-panel-${app.activeTabId}`);
+            if (panelEl) {
+                panelEl.querySelector('#url-input').value = reqData.url;
+                panelEl.querySelector('#method-select').value = reqData.method;
+                panelEl.querySelector('#request-title-input').value = reqData.title;
+                app.setRequestBody(reqData.body);
+            }
             app.renderHeaders();
             app.renderPreScriptsList();
             app.renderPostScriptsList();
-            app.renderCollections(); 
-            app.switchMainTab('request'); 
+            app.renderTabBar();
+        } else {
+            const tab = app.createTab(reqData);
+            const panelEl = document.getElementById(`tab-panel-${tab.id}`);
+            if (panelEl) {
+                panelEl.querySelector('#url-input').value = reqData.url;
+                panelEl.querySelector('#method-select').value = reqData.method;
+                panelEl.querySelector('#request-title-input').value = reqData.title;
+                app.setRequestBody(reqData.body, tab);
+            }
+            app.renderHeaders();
+            app.renderPreScriptsList();
+            app.renderPostScriptsList();
         }
+        app.renderCollections();
     },
 
     loadScriptToEditor(id) {
@@ -2207,31 +2467,7 @@ const app = {
     },
     
     newRequest() {
-        // Clear the form for a new request
-        app.currentRequest = {
-            id: null,
-            title: 'New Request',
-            url: '',
-            method: 'GET',
-            rawHeaders: [{ key: '', value: '' }],
-            body: '',
-            preScriptIds: [],
-            postScriptIds: [],
-            group: app.activeGroups.requests,  // Use active group
-            originalTitle: null  // No original title for new requests
-        };
-        
-        app.elements.requestTitleInput.value = 'New Request';
-        app.elements.urlInput.value = '';
-        app.elements.methodSelect.value = 'GET';
-        app.setRequestBody('');
-        if (app.preScriptCombobox) app.preScriptCombobox.clear();
-        if (app.postScriptCombobox) app.postScriptCombobox.clear();
-        
-        app.renderHeaders();
-        app.renderPreScriptsList();
-        app.renderPostScriptsList();
-        app.switchMainTab('request');
+        app.createTab();
     },
 
     saveCurrentScript() {
@@ -2258,101 +2494,107 @@ const app = {
     // --- Send & Response Handlers ---
 
     handleSend() {
-        const rawHeaders = app.currentRequest.rawHeaders.filter(h => h.key || h.value);
-        const preScriptIds = app.currentRequest.preScriptIds || [];
-        const postScriptIds = app.currentRequest.postScriptIds || [];
-        
-        const responseBodyCode = document.getElementById('response-body-code');
-        if (responseBodyCode) responseBodyCode.textContent = 'Sending request...';
-        
-        app.elements.responseStatus.textContent = 'Status: Sending...';
-        document.getElementById('script-output').textContent = '';
-        app.switchMainTab('result'); 
-        
-        // Set active group for scripts before execution
+        const tab = app.activeTab;
+        if (!tab) return;
+        const rawHeaders = (tab.request.rawHeaders || []).filter(h => h.key || h.value);
+        const preScriptIds = tab.request.preScriptIds || [];
+        const postScriptIds = tab.request.postScriptIds || [];
+
+        const panelEl = document.getElementById(`tab-panel-${tab.id}`);
+        if (!panelEl) { console.error('[handleSend] panelEl not found for tab', tab.id); return; }
+        const statusEl = panelEl.querySelector('#response-status');
+        if (statusEl) statusEl.textContent = 'Status: Sending...';
+        const scriptEl = panelEl.querySelector('#script-output');
+        if (scriptEl) scriptEl.textContent = '';
+
+        const urlEl = panelEl.querySelector('#url-input');
+        const methodEl = panelEl.querySelector('#method-select');
+        if (!urlEl || !methodEl) { console.error('[handleSend] url/method element not found'); return; }
+
         setActiveGroupForScripts(app.activeGroups.variables);
-        
+
         executeRequest(
-            app.elements.urlInput.value,
-            app.elements.methodSelect.value,
+            urlEl.value,
+            methodEl.value,
             rawHeaders,
-            app.getRequestBody(),
+            app.getRequestBody(tab),
             preScriptIds,
             postScriptIds,
-            app.displayResponse, // Pass the UI function to the request module
-            app.activeGroups.variables // Pass active variable group for templating
+            app.displayResponse,
+            app.activeGroups.variables
         );
     },
 
 
     displayResponse(requestDetails, response, responseData, scriptOutput, processedUrl, duration) {
-        // 1. Status and Time
+        const tab = app.activeTab;
+        if (!tab) return;
+        const panelEl = document.getElementById(`tab-panel-${tab.id}`);
+        if (!panelEl) return;
+
         const status = response.status || 'N/A';
         const statusText = response.statusText || 'N/A';
         const statusColor = status >= 200 && status < 300 ? 'text-green-500' : (status >= 400 ? 'text-red-500' : 'text-gray-500');
-        
-        app.elements.responseStatus.className = `font-bold ${statusColor}`;
-        app.elements.responseStatus.textContent = `Status: ${status} ${statusText}`;
-        app.elements.responseTime.textContent = `Time: ${duration}ms`;
 
-        // 2. Request Summary
-        document.getElementById('request-line').textContent = 
+        panelEl.querySelector('#response-status').className = `font-bold ${statusColor}`;
+        panelEl.querySelector('#response-status').textContent = `Status: ${status} ${statusText}`;
+        panelEl.querySelector('#response-time').textContent = `Time: ${duration}ms`;
+
+        panelEl.querySelector('#request-line').textContent =
             `${requestDetails.method} ${requestDetails.processedUrl} HTTP/1.1`;
-        
+
         let requestHeadersText = '';
         Object.entries(requestDetails.headers).forEach(([key, value]) => {
             requestHeadersText += `${key}: ${value}\n`;
         });
-        document.getElementById('request-headers').textContent = requestHeadersText || 'No headers';
-        
-        // Request Body
-        const requestBodySection = document.getElementById('request-body-section');
+        panelEl.querySelector('#request-headers').textContent = requestHeadersText || 'No headers';
+
+        const requestBodySection = panelEl.querySelector('#request-body-section');
         if (requestDetails.body) {
             requestBodySection.classList.remove('hidden');
-            const requestBodyCode = document.getElementById('request-body-code');
-            
+            const requestBodyCode = panelEl.querySelector('#request-body-code');
             try {
-                const bodyJson = JSON.parse(requestDetails.body);
-                const formattedJson = JSON.stringify(bodyJson, null, 2);
-                requestBodyCode.textContent = formattedJson;
+                requestBodyCode.textContent = JSON.stringify(JSON.parse(requestDetails.body), null, 2);
                 requestBodyCode.className = 'language-json';
-                Prism.highlightElement(requestBodyCode);
             } catch (e) {
-                // Not JSON, display as plain text
                 requestBodyCode.textContent = requestDetails.body;
                 requestBodyCode.className = 'language-markup';
-                Prism.highlightElement(requestBodyCode);
             }
+            Prism.highlightElement(requestBodyCode);
         } else {
             requestBodySection.classList.add('hidden');
         }
 
-        // 3. Response Headers
         let responseHeaderText = '';
         if (response.headers) {
-            response.headers.forEach((value, name) => {
-                responseHeaderText += `${name}: ${value}\n`;
-            });
+            response.headers.forEach((value, name) => { responseHeaderText += `${name}: ${value}\n`; });
         }
-        document.getElementById('response-headers').textContent = responseHeaderText || 'No headers';
+        panelEl.querySelector('#response-headers').textContent = responseHeaderText || 'No headers';
 
-        // 4. Response Body with JSON Editor
-        if (app.jsonEditor) {
-            // Update JSON editor with response data
+        if (tab.jsonEditor) {
             try {
-                app.jsonEditor.set({
-                    json: typeof responseData === 'string' ? JSON.parse(responseData) : responseData
-                });
+                tab.jsonEditor.set({ json: typeof responseData === 'string' ? JSON.parse(responseData) : responseData });
             } catch (e) {
-                // If not valid JSON, show as text
-                app.jsonEditor.set({
-                    text: String(responseData)
-                });
+                tab.jsonEditor.set({ text: typeof responseData === 'string' ? responseData : JSON.stringify(responseData, null, 2) });
             }
         }
 
-        // 5. Script Output
-        document.getElementById('script-output').textContent = scriptOutput || 'No script output';
+        panelEl.querySelector('#script-output').textContent = scriptOutput || 'No script output';
+
+        // Scroll to response body
+        const resultEl = panelEl.querySelector('#response-body-wrapper');
+        if (resultEl) resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        // Persist result in tab state for restore on tab switch
+        tab.result = {
+            status, statusText, duration,
+            requestLine: `${requestDetails.method} ${requestDetails.processedUrl} HTTP/1.1`,
+            requestHeaders: requestHeadersText,
+            responseHeaders: responseHeaderText,
+            responseData,
+            scriptOutput
+        };
+
         app.renderVariableStore();
     },
 
@@ -2508,6 +2750,9 @@ const app = {
         // Update tab titles with active group names
         app.renderTabTitles();
         
+        // Initialize first tab before rendering anything that needs tab elements
+        app.createTab();
+
         // Load and render initial state
         app.renderVariableStore();
         app.renderHeaders();
@@ -2521,117 +2766,39 @@ const app = {
         // Set initial tab states
         app.switchSidebarTab('variables');
         app.switchMainTab('request');
-        
-        console.log('Checking for group buttons...');
-        console.log('new-var-group-btn exists:', !!document.getElementById('new-var-group-btn'));
-        console.log('new-request-group-btn exists:', !!document.getElementById('new-request-group-btn'));
-        console.log('new-script-group-btn exists:', !!document.getElementById('new-script-group-btn'));
 
-        // Note: Script editors removed from request builder
-        // Scripts are now edited in the Scripts tab via modal/dialog
-
-        // Attach event listeners
-        document.getElementById('send-btn').onclick = app.handleSend;
-        
+        // + button
+        document.getElementById('new-tab-btn').onclick = () => app.createTab();
         // Sidebar Import split button
         const sidebarImportMainBtn = document.getElementById('sidebar-import-main-btn');
         const sidebarImportDropdownBtn = document.getElementById('sidebar-import-dropdown-btn');
         const sidebarImportDropdownMenu = document.getElementById('sidebar-import-dropdown-menu');
-        
-        // Main button action - Import JSON (default)
-        sidebarImportMainBtn.onclick = () => {
-            document.getElementById('import-file').click();
-        };
-        
-        // Dropdown arrow toggles menu
+        sidebarImportMainBtn.onclick = () => document.getElementById('import-file').click();
         sidebarImportDropdownBtn.onclick = (e) => {
             e.stopPropagation();
             sidebarImportDropdownMenu.classList.toggle('hidden');
         };
-        
-        // Close sidebar dropdown when clicking outside
         document.addEventListener('click', (e) => {
             const splitButtonContainer = sidebarImportMainBtn.parentElement.parentElement;
-            if (!splitButtonContainer.contains(e.target)) {
-                sidebarImportDropdownMenu.classList.add('hidden');
-            }
+            if (!splitButtonContainer.contains(e.target)) sidebarImportDropdownMenu.classList.add('hidden');
         });
-        
-        // Sidebar Import menu item
         document.getElementById('import-postman-btn').onclick = () => {
             sidebarImportDropdownMenu.classList.add('hidden');
             document.getElementById('import-postman-file').click();
         };
-        
-        // Request builder Import cURL button (simple, no dropdown)
-        document.getElementById('import-curl-btn').onclick = app.showImportCurlDialog;
-        
-        document.getElementById('curl-btn').onclick = app.showCurlDialog;
-        document.getElementById('new-request-btn').onclick = app.newRequest;
-        document.getElementById('save-request-btn').onclick = app.saveAsNewRequest;
-        
-        // Script add buttons are no longer needed - typing and selecting adds directly via combobox
-        // But we can keep them as hidden/removed in HTML or repurpose them
-        
-        // Initialize JSON Editor for response (read-only)
-        const jsonEditorContainer = document.getElementById('json-editor-container');
-        if (jsonEditorContainer) {
-            app.jsonEditor = createJSONEditor({
-                target: jsonEditorContainer,
-                props: {
-                    mode: 'tree',
-                    mainMenuBar: true,
-                    navigationBar: true,
-                    statusBar: true,
-                    readOnly: true
-                }
-            });
-        }
-        
-        // Initialize JSON Editor for request body (editable)
-        const requestBodyContainer = document.getElementById('request-body-editor');
-        if (requestBodyContainer) {
-            app.requestBodyEditor = createJSONEditor({
-                target: requestBodyContainer,
-                props: {
-                    mode: 'text',
-                    mainMenuBar: true,
-                    navigationBar: false,
-                    statusBar: true,
-                    readOnly: false
-                }
-            });
-            
-            // Set initial empty object
-            app.requestBodyEditor.set({ text: '' });
-        }
-        
-        // Initialize resize handles for all editors
-        app.initResizeHandles();
-        
-        // Initialize fullscreen button
-        document.getElementById('response-fullscreen-btn').onclick = app.toggleResponseFullscreen;
-        document.getElementById('add-header-btn').onclick = () => {
-            app.currentRequest.rawHeaders.push({ key: '', value: '' });
-            app.renderHeaders();
-        };
+
         document.getElementById('add-var-btn').onclick = () => {
             const key = document.getElementById('var-key-input').value.trim();
             const value = document.getElementById('var-value-input').value.trim();
             if (key) {
                 const activeGroup = app.activeGroups.variables;
                 const varStore = getVariableStore();
-                
-                if (!varStore[activeGroup]) {
-                    varStore[activeGroup] = {};
-                }
-                
+                if (!varStore[activeGroup]) varStore[activeGroup] = {};
                 varStore[activeGroup][key] = value;
                 saveVariableStore(varStore);
-                
                 document.getElementById('var-key-input').value = '';
                 document.getElementById('var-value-input').value = '';
-                app.renderVariableStore(); // Re-render the variables list
+                app.renderVariableStore();
             } else {
                 alert('Variable key cannot be empty.');
             }
@@ -2819,33 +2986,6 @@ const app = {
         
         // Initialize vertical resizer for split panes
         app.initVerticalResizer();
-        
-        // Initialize script comboboxes for type-ahead
-        app.preScriptCombobox = new ScriptCombobox(
-            'pre-script-input',
-            'pre-script-dropdown',
-            (script) => {
-                if (!app.currentRequest.preScriptIds.includes(script.id)) {
-                    app.currentRequest.preScriptIds.push(script.id);
-                    app.renderPreScriptsList();
-                } else {
-                    alert('This script is already added');
-                }
-            }
-        );
-
-        app.postScriptCombobox = new ScriptCombobox(
-            'post-script-input',
-            'post-script-dropdown',
-            (script) => {
-                if (!app.currentRequest.postScriptIds.includes(script.id)) {
-                    app.currentRequest.postScriptIds.push(script.id);
-                    app.renderPostScriptsList();
-                } else {
-                    alert('This script is already added');
-                }
-            }
-        );
         
         // Show About dialog as splash screen on first load
         // Use different key for Tauri vs web to track separately
