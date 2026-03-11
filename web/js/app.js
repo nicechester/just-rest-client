@@ -377,7 +377,8 @@ const app = {
         ['request-body-editor', 'json-editor-container'].forEach(editorId => {
             const savedHeight = localStorage.getItem(`editor-height-${editorId}`);
             const element = panelEl.querySelector(`#${editorId}`);
-            if (savedHeight && element) element.style.height = savedHeight;
+            const maxH = editorId === 'json-editor-container' ? 400 : 200;
+            if (savedHeight && element) element.style.height = Math.min(parseInt(savedHeight), maxH) + 'px';
         });
     },
     
@@ -1113,7 +1114,7 @@ const app = {
                 <!-- Body -->
                 <div class="border-t pt-4">
                     <h3 class="font-medium text-gray-600 mb-2">Body (POST/PUT/PATCH)</h3>
-                    <textarea id="request-body-editor" rows="3" class="w-full p-2 border rounded-lg text-sm font-mono focus:ring-blue-500 focus:border-blue-500 resize-y" placeholder="Request body (JSON, form-encoded, GraphQL, etc.)"></textarea>
+                    <textarea id="request-body-editor" rows="3" class="w-full p-2 border rounded-lg text-sm font-mono focus:ring-blue-500 focus:border-blue-500 resize-y" style="max-height:200px;overflow-y:auto" placeholder="Request body (JSON, form-encoded, GraphQL, etc.)"></textarea>
                 </div>
                 <!-- Pre-Request Scripts -->
                 <div class="border-t pt-4 space-y-2">
@@ -1156,7 +1157,7 @@ const app = {
                             </button>
                         </div>
                         <div class="resizable-editor-container">
-                            <div id="json-editor-container" class="rounded border border-gray-300" style="height:300px"></div>
+                            <div id="json-editor-container" class="rounded border border-gray-300" style="height:300px;max-height:400px"></div>
                             <div class="resize-handle" data-target="json-editor-container"></div>
                         </div>
                     </div>
@@ -1357,6 +1358,7 @@ const app = {
     closeTab(tabId) {
         const idx = app.tabs.findIndex(t => t.id === tabId);
         if (idx === -1) return;
+        const tab = app.tabs[idx];
 
         // Destroy response JSON editor
         if (tab.jsonEditor) try { tab.jsonEditor.destroy(); } catch(e) {}
