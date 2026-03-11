@@ -55,6 +55,137 @@ input[type="text"] {
     /* Blue-500 */
 }
 
+/* Request Tab Bar */
+.request-tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    overflow-x: auto;
+    flex-shrink: 0;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 0.75rem;
+    padding: 4px;
+    scrollbar-width: thin;
+}
+
+.request-tab-bar::-webkit-scrollbar {
+    height: 4px;
+}
+
+.request-tab-bar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 2px;
+}
+
+.request-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    white-space: nowrap;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #6b7280;
+    background: transparent;
+    border: 1px solid transparent;
+    transition: background-color 0.15s, color 0.15s;
+    max-width: 180px;
+    min-width: 80px;
+    flex-shrink: 0;
+}
+
+.request-tab:hover {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.request-tab.active {
+    background: white;
+    color: #1d4ed8;
+    border-color: #d1d5db;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.request-tab .tab-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+}
+
+.request-tab .tab-method {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: #e5e7eb;
+    color: #374151;
+    flex-shrink: 0;
+}
+
+.request-tab.active .tab-method {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.request-tab .tab-close {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: #9ca3af;
+    line-height: 1;
+}
+
+.request-tab .tab-close:hover {
+    background: #fca5a5;
+    color: #dc2626;
+}
+
+.request-tab-add {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    color: #6b7280;
+    cursor: pointer;
+    transition: background-color 0.15s;
+    margin-left: 2px;
+}
+
+.request-tab-add:hover {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+/* Tab Panel Split Layout */
+.tab-panel-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    height: 100%;
+}
+
+.tab-panel-scroll {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
 /* Tab group name styling */
 .tab-button {
     display: flex;
