@@ -125,13 +125,17 @@ async function executeRequest(rawUrl, method, rawHeaders, rawBody, preScriptIds,
     });
 
     // 3. Parse Response Body
-    const contentType = response.headers.get('content-type');
-    const responseClone = response.clone(); 
-
-    if (contentType && (contentType.includes('json') || contentType.includes('javascript'))) {
-      responseData = await responseClone.json();
+    const noBodyStatuses = [204, 205, 304];
+    if (noBodyStatuses.includes(response.status)) {
+      responseData = null;
     } else {
-      responseData = await responseClone.text();
+      const contentType = response.headers.get('content-type');
+      const responseClone = response.clone();
+      if (contentType && (contentType.includes('json') || contentType.includes('javascript'))) {
+        responseData = await responseClone.json();
+      } else {
+        responseData = await responseClone.text();
+      }
     }
     
     // 4. Run post-request scripts (with processed request data that was actually sent)

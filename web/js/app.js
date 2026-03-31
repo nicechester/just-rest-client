@@ -70,7 +70,7 @@ class ScriptCombobox {
     
     init() {
         if (!this.input || !this.dropdown) return;
-        
+
         // Input events
         this.input.addEventListener('input', () => this.filterAndShow());
         this.input.addEventListener('focus', () => this.filterAndShow());
@@ -78,16 +78,17 @@ class ScriptCombobox {
             // Delay to allow click on dropdown
             setTimeout(() => this.hide(), 200);
         });
-        
+
         // Keyboard navigation
         this.input.addEventListener('keydown', (e) => this.handleKeydown(e));
-        
+
         // Click outside to close
-        document.addEventListener('click', (e) => {
+        this._docClickHandler = (e) => {
             if (!this.input.contains(e.target) && !this.dropdown.contains(e.target)) {
                 this.hide();
             }
-        });
+        };
+        document.addEventListener('click', this._docClickHandler);
     }
     
     setScripts(scripts) {
@@ -214,6 +215,13 @@ class ScriptCombobox {
     clear() {
         this.input.value = '';
         this.hide();
+    }
+
+    destroy() {
+        if (this._docClickHandler) {
+            document.removeEventListener('click', this._docClickHandler);
+            this._docClickHandler = null;
+        }
     }
 }
 
@@ -355,13 +363,14 @@ const app = {
                 e.preventDefault();
             });
 
-            document.addEventListener('mousemove', (e) => {
+            if (!panelEl._resizeCleanups) panelEl._resizeCleanups = [];
+
+            const onMove = (e) => {
                 if (!isResizing || !targetElement) return;
                 const newHeight = Math.max(50, startHeight + (e.clientY - startY));
                 targetElement.style.height = `${newHeight}px`;
-            });
-
-            document.addEventListener('mouseup', () => {
+            };
+            const onUp = () => {
                 if (isResizing) {
                     isResizing = false;
                     document.body.style.cursor = '';
@@ -370,7 +379,10 @@ const app = {
                         localStorage.setItem(`editor-height-${targetElement.id}`, targetElement.style.height);
                     }
                 }
-            });
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+            panelEl._resizeCleanups.push(onMove, onUp);
         });
 
         // Restore saved heights
@@ -1077,6 +1089,10 @@ const app = {
                     app.switchTab(tab.id);
                 }
             });
+            el.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                app._showTabContextMenu(tab.id, e);
+            });
             bar.insertBefore(el, addBtn);
         });
     },
@@ -1114,7 +1130,7 @@ const app = {
                 <!-- Body -->
                 <div class="border-t pt-4">
                     <h3 class="font-medium text-gray-600 mb-2">Body (POST/PUT/PATCH)</h3>
-                    <textarea id="request-body-editor" rows="3" class="w-full p-2 border rounded-lg text-sm font-mono focus:ring-blue-500 focus:border-blue-500 resize-y" style="max-height:200px;overflow-y:auto" placeholder="Request body (JSON, form-encoded, GraphQL, etc.)"></textarea>
+                    <textarea id="request-body-editor" rows="3" class="w-full p-2 border rounded-lg text-sm font-mono focus:ring-blue-500 focus:border-blue-500 resize-y" style="overflow-y:auto" placeholder="Request body (JSON, form-encoded, GraphQL, etc.)"></textarea>
                 </div>
                 <!-- Pre-Request Scripts -->
                 <div class="border-t pt-4 space-y-2">
@@ -1157,7 +1173,7 @@ const app = {
                             </button>
                         </div>
                         <div class="resizable-editor-container">
-                            <div id="json-editor-container" class="rounded border border-gray-300" style="height:300px;max-height:400px"></div>
+                            <div id="json-editor-container" class="rounded border border-gray-300" style="height:300px"></div>
                             <div class="resize-handle" data-target="json-editor-container"></div>
                         </div>
                     </div>
@@ -1355,6 +1371,57 @@ const app = {
         }
     },
 
+    _showTabContextMenu(tabId, event) {
+        app._hideTabContextMenu();
+        const menu = app._tabContextMenu;
+        const tabIndex = app.tabs.findIndex(t => t.id === tabId);
+
+        const items = [
+            { label: 'Close', action: () => app.closeTab(tabId) },
+            { label: 'Close Others', action: () => {
+                app.tabs.filter(t => t.id !== tabId).map(t => t.id).forEach(id => app.closeTab(id));
+            }},
+            { separator: true },
+            { label: 'Close to the Right', action: () => {
+                app.tabs.slice(tabIndex + 1).map(t => t.id).forEach(id => app.closeTab(id));
+            }, disabled: tabIndex >= app.tabs.length - 1 },
+            { separator: true },
+            { label: 'Close All', action: () => {
+                [...app.tabs].map(t => t.id).forEach(id => app.closeTab(id));
+            }},
+        ];
+
+        menu.innerHTML = items.map((item, i) => {
+            if (item.separator) return `<div class="context-menu-separator"></div>`;
+            const disabledAttr = item.disabled ? ' disabled style="opacity:0.4;cursor:default;"' : '';
+            return `<button data-action="${i}"${disabledAttr}>${item.label}</button>`;
+        }).join('');
+
+        const menuWidth = 160;
+        const menuHeight = 130;
+        let x = event.clientX;
+        let y = event.clientY;
+        if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 4;
+        if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 4;
+        menu.style.left = x + 'px';
+        menu.style.top = y + 'px';
+        menu.classList.add('visible');
+
+        menu.querySelectorAll('button:not([disabled])').forEach(btn => {
+            btn.addEventListener('click', () => {
+                app._hideTabContextMenu();
+                items[parseInt(btn.dataset.action)].action();
+            });
+        });
+    },
+
+    _hideTabContextMenu() {
+        if (app._tabContextMenu) {
+            app._tabContextMenu.classList.remove('visible');
+            app._tabContextMenu.innerHTML = '';
+        }
+    },
+
     closeTab(tabId) {
         const idx = app.tabs.findIndex(t => t.id === tabId);
         if (idx === -1) return;
@@ -1363,9 +1430,21 @@ const app = {
         // Destroy response JSON editor
         if (tab.jsonEditor) try { tab.jsonEditor.destroy(); } catch(e) {}
 
-        // Remove DOM
+        // Cleanup ScriptCombobox listeners
+        if (tab.preScriptCombobox) tab.preScriptCombobox.destroy();
+        if (tab.postScriptCombobox) tab.postScriptCombobox.destroy();
+
+        // Cleanup resize handle listeners
         const panelEl = document.getElementById(`tab-panel-${tabId}`);
-        if (panelEl) panelEl.remove();
+        if (panelEl) {
+            if (panelEl._resizeCleanups) {
+                panelEl._resizeCleanups.forEach(fn => {
+                    document.removeEventListener('mousemove', fn);
+                    document.removeEventListener('mouseup', fn);
+                });
+            }
+            panelEl.remove();
+        }
 
         app.tabs.splice(idx, 1);
 
@@ -1567,12 +1646,14 @@ const app = {
                 }
             });
         });
-        
+
         // Update array order after drag
-        container.addEventListener('dragend', () => {
+        if (container._dragEndHandler) {
+            container.removeEventListener('dragend', container._dragEndHandler);
+        }
+        container._dragEndHandler = () => {
             const newOrder = Array.from(container.querySelectorAll('.script-item'))
                 .map(item => item.getAttribute('data-script-id'));
-            
             if (type === 'pre') {
                 app.currentRequest.preScriptIds = newOrder;
                 app.renderPreScriptsList();
@@ -1580,7 +1661,8 @@ const app = {
                 app.currentRequest.postScriptIds = newOrder;
                 app.renderPostScriptsList();
             }
-        });
+        };
+        container.addEventListener('dragend', container._dragEndHandler);
         
         function getDragAfterElement(container, y) {
             const draggableElements = [...container.querySelectorAll('.script-item:not(.opacity-50)')];
@@ -1926,15 +2008,18 @@ const app = {
         });
 
         // Close dropdowns when clicking outside
-        document.addEventListener('click', (e) => {
-            menuConfigs.forEach(config => {
-                const menu = document.getElementById(config.menu);
-                const menuBtn = document.getElementById(config.menuBtn);
-                if (menu && menuBtn && !menuBtn.contains(e.target) && !menu.contains(e.target)) {
-                    menu.classList.add('hidden');
-                }
+        if (!app._groupMenusInitialized) {
+            document.addEventListener('click', (e) => {
+                menuConfigs.forEach(config => {
+                    const menu = document.getElementById(config.menu);
+                    const menuBtn = document.getElementById(config.menuBtn);
+                    if (menu && menuBtn && !menuBtn.contains(e.target) && !menu.contains(e.target)) {
+                        menu.classList.add('hidden');
+                    }
+                });
             });
-        });
+            app._groupMenusInitialized = true;
+        }
     },
 
     deleteGroup(type) {
@@ -2676,6 +2761,9 @@ const app = {
     // --- Vertical Resizer ---
 
     initVerticalResizer() {
+        if (app._verticalResizerInitialized) return;
+        app._verticalResizerInitialized = true;
+
         const handle = document.getElementById('vertical-resize-handle');
         const sidebar = document.getElementById('sidebar');
         const mainContent = document.getElementById('main-content');
@@ -2737,21 +2825,38 @@ const app = {
 
     init() {
         console.log('App initializing...');
-        
+
         // Run migration for old data format
         app.migrateOldRequests();
-        
+
         // Load active groups from storage
         const savedActiveGroups = getActiveGroups();
         app.activeGroups = savedActiveGroups;
         console.log('Active groups loaded:', app.activeGroups);
-        
+
+        // Initialize tab context menu
+        const ctxMenu = document.createElement('div');
+        ctxMenu.id = 'tab-context-menu';
+        document.body.appendChild(ctxMenu);
+        app._tabContextMenu = ctxMenu;
+
+        // NOTE: These three document listeners are intentionally permanent (app lifetime).
+        // They are registered once at init and do not need cleanup.
+        document.addEventListener('click', (e) => {
+            if (app._tabContextMenu && !app._tabContextMenu.contains(e.target)) {
+                app._hideTabContextMenu();
+            }
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') app._hideTabContextMenu();
+        });
+
         // Render group selectors first
         app.renderGroupSelectors();
-        
+
         // Update tab titles with active group names
         app.renderTabTitles();
-        
+
         // Initialize first tab before rendering anything that needs tab elements
         app.createTab();
 
