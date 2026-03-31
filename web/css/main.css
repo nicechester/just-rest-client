@@ -436,16 +436,57 @@ pre[class*="language-"] code {
     font-style: italic;
 }
 
+/* Tab Context Menu */
+#tab-context-menu {
+    position: fixed;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    min-width: 160px;
+    padding: 4px 0;
+    display: none;
+}
+
+#tab-context-menu.visible {
+    display: block;
+}
+
+#tab-context-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 7px 14px;
+    font-size: 0.8rem;
+    color: #374151;
+    background: none;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+#tab-context-menu button:hover {
+    background: #f3f4f6;
+    color: #111827;
+}
+
+#tab-context-menu .context-menu-separator {
+    height: 1px;
+    background: #e5e7eb;
+    margin: 4px 0;
+}
+
 /* Responsive: Hide vertical resizer on mobile */
 @media (max-width: 1023px) {
     .vertical-resize-handle {
         display: none;
     }
-    
+
     #main-layout {
         flex-direction: column !important;
     }
-    
+
     #sidebar {
         width: 100% !important;
     }
