@@ -1614,7 +1614,7 @@ const app = {
         
         app.elements.variablesList.innerHTML = Object.entries(vars).length > 0
             ? Object.entries(vars).map(([key, value]) => `
-                <div class="variable-item bg-gray-100 p-2 rounded-lg hover:bg-gray-200 transition cursor-move" data-var-key="${key}" draggable="true">
+                <div class="variable-item bg-gray-100 p-2 rounded-lg hover:bg-gray-200 transition cursor-move" data-var-key="${key}">
                     <div class="variable-display flex justify-between items-center">
                         <span class="drag-handle text-gray-400 mr-2 select-none">⋮⋮</span>
                         <span class="font-mono text-xs text-gray-700 font-semibold">${key}</span>
@@ -1845,61 +1845,112 @@ const app = {
         };
         const container = containerMap[listType];
         if (!container) return;
-        
+
+        // Clean up previous listeners
+        if (container._dragCleanup) container._dragCleanup();
+
         const itemSelector = listType === 'variables' ? '.variable-item' : '.sidebar-list-item';
-        const items = container.querySelectorAll(itemSelector);
-        
-        let draggedItem = null;
-        
-        items.forEach(item => {
-            item.addEventListener('dragstart', (e) => {
-                draggedItem = item;
-                item.classList.add('opacity-50');
-                e.dataTransfer.effectAllowed = 'move';
-            });
-            
-            item.addEventListener('dragend', (e) => {
-                item.classList.remove('opacity-50');
-                // Save the new order when drag ends
-                if (draggedItem) {
-                    app.saveSidebarListOrder(listType, itemSelector);
-                }
-                draggedItem = null;
-            });
-            
-            item.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                
-                if (!draggedItem || draggedItem === item) return;
-                
-                const afterElement = app.getSidebarDragAfterElement(container, e.clientY, itemSelector);
-                if (afterElement == null) {
-                    container.appendChild(draggedItem);
-                } else {
-                    container.insertBefore(draggedItem, afterElement);
-                }
-            });
-        });
-    },
-    
-    /**
-     * Helper function to determine insertion position during drag.
-     */
-    getSidebarDragAfterElement(container, y, itemSelector) {
-        const draggableElements = [...container.querySelectorAll(`${itemSelector}:not(.opacity-50)`)];
-        
-        return draggableElements.reduce((closest, child) => {
-            const box = child.getBoundingClientRect();
-            const offset = y - box.top - box.height / 2;
-            
-            if (offset < 0 && offset > closest.offset) {
-                return { offset: offset, element: child };
-            } else {
-                return closest;
+
+        let dragEl = null;
+        let ghost = null;
+        let startY = 0;
+        let dragging = false;
+
+        const onMouseDown = (e) => {
+            const item = e.target.closest(itemSelector);
+            if (!item) return;
+            // Don't drag when clicking buttons/inputs inside the item
+            if (e.target.closest('button, input')) return;
+            if (e.button !== 0) return;
+            dragEl = item;
+            startY = e.clientY;
+            dragging = false;
+            e.preventDefault();
+        };
+
+        const onMouseMove = (e) => {
+            if (!dragEl) return;
+            if (!dragging && Math.abs(e.clientY - startY) < 4) return;
+
+            if (!dragging) {
+                dragging = true;
+                ghost = dragEl.cloneNode(true);
+                ghost.style.cssText = `
+                    position: fixed;
+                    pointer-events: none;
+                    opacity: 0.75;
+                    z-index: 9999;
+                    width: ${dragEl.offsetWidth}px;
+                    background: white;
+                    border: 1px solid #3b82f6;
+                    border-radius: 0.5rem;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                    padding: 8px;
+                    font-size: 0.875rem;
+                `;
+                document.body.appendChild(ghost);
+                dragEl.classList.add('opacity-50');
             }
-        }, { offset: Number.NEGATIVE_INFINITY }).element;
+
+            ghost.style.left = (dragEl.getBoundingClientRect().left) + 'px';
+            ghost.style.top  = (e.clientY - dragEl.offsetHeight / 2) + 'px';
+
+            // Find insertion point and show indicator
+            const items = [...container.querySelectorAll(itemSelector)].filter(i => i !== dragEl);
+            items.forEach(i => i.classList.remove('sidebar-drag-over-top', 'sidebar-drag-over-bottom'));
+            const target = getTargetItem(items, e.clientY);
+            if (target) {
+                const r = target.getBoundingClientRect();
+                target.classList.add(e.clientY < r.top + r.height / 2 ? 'sidebar-drag-over-top' : 'sidebar-drag-over-bottom');
+            }
+        };
+
+        const onMouseUp = (e) => {
+            if (!dragEl) return;
+
+            if (dragging) {
+                const items = [...container.querySelectorAll(itemSelector)].filter(i => i !== dragEl);
+                items.forEach(i => i.classList.remove('sidebar-drag-over-top', 'sidebar-drag-over-bottom'));
+                const target = getTargetItem(items, e.clientY);
+
+                if (target) {
+                    const r = target.getBoundingClientRect();
+                    const insertAfter = e.clientY >= r.top + r.height / 2;
+                    if (insertAfter) {
+                        target.after(dragEl);
+                    } else {
+                        target.before(dragEl);
+                    }
+                }
+
+                app.saveSidebarListOrder(listType, itemSelector);
+                if (ghost) { ghost.remove(); ghost = null; }
+                dragEl.classList.remove('opacity-50');
+            }
+
+            dragEl = null;
+            dragging = false;
+        };
+
+        function getTargetItem(items, y) {
+            return items.find(i => {
+                const r = i.getBoundingClientRect();
+                return y >= r.top && y <= r.bottom;
+            }) || (items.length && y > items[items.length - 1].getBoundingClientRect().bottom ? items[items.length - 1] : null);
+        }
+
+        container.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+
+        container._dragCleanup = () => {
+            container.removeEventListener('mousedown', onMouseDown);
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
     },
+
+    getSidebarDragAfterElement() {},  // kept for compat, no longer used
     
     /**
      * Saves the new order of sidebar list items after drag-and-drop.
@@ -2302,7 +2353,7 @@ const app = {
         
         app.elements.requestsList.innerHTML = requests.length > 0
             ? requests.map(r => `
-                <div class="sidebar-list-item w-full p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition text-sm flex justify-between items-center cursor-move" draggable="true">
+                <div class="sidebar-list-item w-full p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition text-sm flex justify-between items-center cursor-move">
                     <span class="drag-handle text-gray-400 mr-2 select-none">⋮⋮</span>
                     <button data-load-request="${r.id}" class="load-request-btn flex-1 text-left flex justify-between items-center">
                         <span>${r.title}</span>
@@ -2333,7 +2384,7 @@ const app = {
         
         app.elements.scriptsList.innerHTML = scripts.length > 0
             ? scripts.map(s => `
-                <div class="sidebar-list-item w-full p-2 bg-purple-100 hover:bg-purple-200 rounded-lg transition text-sm flex justify-between items-center cursor-move" draggable="true">
+                <div class="sidebar-list-item w-full p-2 bg-purple-100 hover:bg-purple-200 rounded-lg transition text-sm flex justify-between items-center cursor-move">
                     <span class="drag-handle text-gray-400 mr-2 select-none">⋮⋮</span>
                     <button data-load-script="${s.id}" class="load-script-btn flex-1 text-left">
                         <span>${s.name}</span>

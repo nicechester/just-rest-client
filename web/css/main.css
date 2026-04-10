@@ -221,6 +221,14 @@ input[type="text"] {
     border-right: 2px solid #3b82f6;
 }
 
+.sidebar-drag-over-top {
+    border-top: 2px solid #3b82f6;
+}
+
+.sidebar-drag-over-bottom {
+    border-bottom: 2px solid #3b82f6;
+}
+
 /* Tab Panel Split Layout */
 .tab-panel-container {
     flex: 1;
