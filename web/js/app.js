@@ -27,7 +27,9 @@ import {
     addGroupName,
     loadGroupNames,
     saveGroupNames,
-    renameGroup
+    renameGroup,
+    saveTabSessions,
+    loadTabSessions
 } from './storage.js';
 
 import { 
@@ -1069,7 +1071,6 @@ const app = {
         const bar = document.getElementById('request-tab-bar');
         const addBtn = document.getElementById('new-tab-btn');
 
-        // Remove old tab elements (keep the + button)
         bar.querySelectorAll('.request-tab').forEach(el => el.remove());
 
         app.tabs.forEach(tab => {
@@ -1095,6 +1096,131 @@ const app = {
             });
             bar.insertBefore(el, addBtn);
         });
+
+        app._initTabBarDrag(bar);
+        app._updateTabOverflowIndicator();
+    },
+
+    _initTabBarDrag(bar) {
+        // Clean up previous listeners
+        if (bar._dragCleanup) bar._dragCleanup();
+
+        let dragEl = null;      // the tab element being dragged
+        let ghost = null;       // floating clone following the cursor
+        let startX = 0;
+        let dragging = false;
+
+        const onMouseDown = (e) => {
+            const tab = e.target.closest('.request-tab');
+            if (!tab || e.target.dataset.closeTab) return;
+            if (e.button !== 0) return;
+            dragEl = tab;
+            startX = e.clientX;
+            dragging = false;
+            e.preventDefault();
+        };
+
+        const onMouseMove = (e) => {
+            if (!dragEl) return;
+            if (!dragging && Math.abs(e.clientX - startX) < 4) return;
+
+            if (!dragging) {
+                dragging = true;
+                // Create ghost
+                ghost = dragEl.cloneNode(true);
+                ghost.style.cssText = `
+                    position: fixed;
+                    pointer-events: none;
+                    opacity: 0.75;
+                    z-index: 9999;
+                    height: ${dragEl.offsetHeight}px;
+                    width: ${dragEl.offsetWidth}px;
+                    background: white;
+                    border: 1px solid #3b82f6;
+                    border-radius: 0.5rem;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                `;
+                document.body.appendChild(ghost);
+                dragEl.classList.add('tab-dragging');
+            }
+
+            ghost.style.left = (e.clientX - dragEl.offsetWidth / 2) + 'px';
+            ghost.style.top  = (dragEl.getBoundingClientRect().top) + 'px';
+
+            // Highlight drop target
+            const tabs = [...bar.querySelectorAll('.request-tab')].filter(t => t !== dragEl);
+            tabs.forEach(t => t.classList.remove('tab-drag-over-left', 'tab-drag-over-right'));
+            const target = tabs.find(t => {
+                const r = t.getBoundingClientRect();
+                return e.clientX >= r.left && e.clientX <= r.right;
+            });
+            if (target) {
+                const r = target.getBoundingClientRect();
+                target.classList.add(e.clientX < r.left + r.width / 2 ? 'tab-drag-over-left' : 'tab-drag-over-right');
+            }
+        };
+
+        const onMouseUp = (e) => {
+            if (!dragEl) return;
+
+            if (dragging) {
+                // Find drop target
+                const tabs = [...bar.querySelectorAll('.request-tab')].filter(t => t !== dragEl);
+                tabs.forEach(t => t.classList.remove('tab-drag-over-left', 'tab-drag-over-right'));
+                const target = tabs.find(t => {
+                    const r = t.getBoundingClientRect();
+                    return e.clientX >= r.left && e.clientX <= r.right;
+                });
+
+                if (target) {
+                    const fromId = dragEl.dataset.tabId;
+                    const toId   = target.dataset.tabId;
+                    const fromIdx = app.tabs.findIndex(t => t.id === fromId);
+                    const r = target.getBoundingClientRect();
+                    const insertAfter = e.clientX >= r.left + r.width / 2;
+                    const [moved] = app.tabs.splice(fromIdx, 1);
+                    const newToIdx = app.tabs.findIndex(t => t.id === toId);
+                    app.tabs.splice(insertAfter ? newToIdx + 1 : newToIdx, 0, moved);
+                    app.renderTabBar();
+                    app._persistTabSessions();
+                }
+
+                if (ghost) { ghost.remove(); ghost = null; }
+                dragEl.classList.remove('tab-dragging');
+            }
+
+            dragEl = null;
+            dragging = false;
+        };
+
+        bar.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+
+        bar._dragCleanup = () => {
+            bar.removeEventListener('mousedown', onMouseDown);
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+    },
+
+    _updateTabOverflowIndicator() {
+        const bar = document.getElementById('request-tab-bar');
+        const left = document.getElementById('tab-overflow-left');
+        const right = document.getElementById('tab-overflow-indicator');
+        if (!left || !right) return;
+        const hasOverflow = bar.scrollWidth > bar.clientWidth + 4;
+        left.classList.toggle('hidden', !hasOverflow || bar.scrollLeft <= 4);
+        right.classList.toggle('hidden', !hasOverflow || bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 4);
+    },
+
+    _persistTabSessions() {
+        const serialized = app.tabs.map(t => ({
+            id: t.id,
+            request: t.request,
+            result: t.result
+        }));
+        saveTabSessions(serialized, app.activeTabId);
     },
 
     _buildTabPanelHTML(tabId) {
@@ -1270,18 +1396,21 @@ const app = {
             if (app.activeTab && app.activeTab.id === tab.id) {
                 app.activeTab.request.url = e.target.value;
                 app.renderTabBar();
+                app._persistTabSessions();
             }
         });
         panelEl.querySelector('#method-select').addEventListener('change', (e) => {
             if (app.activeTab && app.activeTab.id === tab.id) {
                 app.activeTab.request.method = e.target.value;
                 app.renderTabBar();
+                app._persistTabSessions();
             }
         });
         panelEl.querySelector('#request-title-input').addEventListener('input', (e) => {
             if (app.activeTab && app.activeTab.id === tab.id) {
                 app.activeTab.request.title = e.target.value;
                 app.renderTabBar();
+                app._persistTabSessions();
             }
         });
     },
@@ -1326,6 +1455,7 @@ const app = {
         });
 
         app.renderTabBar();
+        app._persistTabSessions();
 
         // Populate form fields from tab state
         const tab = app.activeTab;
@@ -1454,6 +1584,7 @@ const app = {
             const nextTab = app.tabs[Math.min(idx, app.tabs.length - 1)];
             app.switchTab(nextTab.id);
         }
+        app._persistTabSessions();
     },
 
     _isTabBlank(tab) {
@@ -2683,6 +2814,7 @@ const app = {
         };
 
         app.renderVariableStore();
+        app._persistTabSessions();
     },
 
     handleImport(event) {
@@ -2857,8 +2989,46 @@ const app = {
         // Update tab titles with active group names
         app.renderTabTitles();
 
-        // Initialize first tab before rendering anything that needs tab elements
-        app.createTab();
+        // Restore tab sessions or create a fresh tab
+        const savedSessions = loadTabSessions();
+        if (savedSessions && savedSessions.tabs && savedSessions.tabs.length > 0) {
+            savedSessions.tabs.forEach(saved => {
+                const tab = app._newTabData();
+                tab.id = saved.id;
+                tab.request = saved.request || tab.request;
+                tab.result = saved.result || null;
+                app.tabs.push(tab);
+
+                const panels = document.getElementById('request-tab-panels');
+                panels.insertAdjacentHTML('beforeend', app._buildTabPanelHTML(tab.id));
+                const panelEl = document.getElementById(`tab-panel-${tab.id}`);
+
+                tab.requestBodyEditor = null;
+                const bodyTextarea = panelEl.querySelector('#request-body-editor');
+                if (tab.request.body) bodyTextarea.value = tab.request.body;
+
+                const jsonContainer = panelEl.querySelector('#json-editor-container');
+                tab.jsonEditor = createJSONEditor({
+                    target: jsonContainer,
+                    props: { mode: 'tree', mainMenuBar: true, navigationBar: true, statusBar: true, readOnly: true }
+                });
+
+                app.initResizeHandles(panelEl);
+                app._wireTabPanel(panelEl, tab);
+                app._initTabScriptComboboxes(tab, panelEl);
+            });
+            // Sync counter so new tabs don't collide
+            const maxCounter = savedSessions.tabs.reduce((max, t) => {
+                const n = parseInt(t.id.replace('tab-', ''));
+                return isNaN(n) ? max : Math.max(max, n);
+            }, 0);
+            app._tabCounter = maxCounter;
+
+            const activeId = savedSessions.activeTabId;
+            app.switchTab(app.tabs.find(t => t.id === activeId) ? activeId : app.tabs[0].id);
+        } else {
+            app.createTab();
+        }
 
         // Load and render initial state
         app.renderVariableStore();
@@ -2876,6 +3046,17 @@ const app = {
 
         // + button
         document.getElementById('new-tab-btn').onclick = () => app.createTab();
+
+        // Tab bar overflow indicator scroll wiring
+        const tabBar = document.getElementById('request-tab-bar');
+        tabBar.addEventListener('scroll', () => app._updateTabOverflowIndicator());
+        window.addEventListener('resize', () => app._updateTabOverflowIndicator());
+        document.getElementById('tab-overflow-left').addEventListener('click', () => {
+            tabBar.scrollBy({ left: -120, behavior: 'smooth' });
+        });
+        document.getElementById('tab-overflow-indicator').addEventListener('click', () => {
+            tabBar.scrollBy({ left: 120, behavior: 'smooth' });
+        });
         // Sidebar Import split button
         const sidebarImportMainBtn = document.getElementById('sidebar-import-main-btn');
         const sidebarImportDropdownBtn = document.getElementById('sidebar-import-dropdown-btn');

@@ -11,6 +11,7 @@ const STORAGE_KEYS = {
   SCRIPTS: 'restClient.scripts',
   ACTIVE_GROUPS: 'restClient.activeGroups',
   GROUP_NAMES: 'restClient.groupNames', // Store all group names (including empty ones)
+  TAB_SESSIONS: 'restClient.tabSessions',
 };
 
 // Default group name
@@ -485,6 +486,33 @@ function getAllGroups(type) {
 }
 
 /**
+ * Saves the current tab sessions to localStorage.
+ * @param {Array<Object>} tabs - Serializable tab state array
+ * @param {string} activeTabId - The active tab id
+ */
+function saveTabSessions(tabs, activeTabId) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.TAB_SESSIONS, JSON.stringify({ tabs, activeTabId }));
+  } catch (error) {
+    console.error('Error saving tab sessions:', error);
+  }
+}
+
+/**
+ * Loads saved tab sessions from localStorage.
+ * @return {{ tabs: Array, activeTabId: string } | null}
+ */
+function loadTabSessions() {
+  try {
+    const json = localStorage.getItem(STORAGE_KEYS.TAB_SESSIONS);
+    return json ? JSON.parse(json) : null;
+  } catch (error) {
+    console.error('Error loading tab sessions:', error);
+    return null;
+  }
+}
+
+/**
  * Public interface for the storage module.
  */
 export {
@@ -504,5 +532,7 @@ export {
   addGroupName,
   loadGroupNames,
   saveGroupNames,
-  renameGroup
+  renameGroup,
+  saveTabSessions,
+  loadTabSessions
 };
