@@ -674,10 +674,18 @@ const app = {
                 result = await new Promise((resolve) => {
                     const captureResponse = (requestDetails, response, responseData, scriptOutput, processedUrl, duration) => {
                         resolve({
-                            status: response.status || 'N/A',
-                            statusText: response.statusText || 'N/A',
-                            headers: Object.fromEntries(response.headers?.entries?.() || []),
-                            body: responseData,
+                            request: {
+                                url: requestDetails.processedUrl,
+                                method: requestDetails.method,
+                                headers: requestDetails.headers,
+                                body: requestDetails.body
+                            },
+                            response: {
+                                status: response.status || 'N/A',
+                                statusText: response.statusText || 'N/A',
+                                headers: Object.fromEntries(response.headers?.entries?.() || []),
+                                body: responseData
+                            },
                             scriptOutput: scriptOutput || '',
                             duration: duration
                         });
