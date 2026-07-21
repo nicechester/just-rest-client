@@ -109,6 +109,80 @@ npm run tauri:build
 - **Smart Script Filtering**: Only shows relevant scripts (active group + global) in dropdowns
 - **Search Functionality**: Search across variables, requests, and scripts with real-time filtering
 
+## 🔌 MCP Server (Model Context Protocol)
+
+Just REST Client includes an MCP server that allows Claude and other MCP-compatible AI clients to access your saved requests programmatically.
+
+### Enabling MCP Server
+
+The MCP server is built into the desktop app:
+
+1. Launch the desktop application
+2. Open Settings
+3. Enable "MCP Server" and configure the port (default: 3001)
+4. Add `mcp://localhost:3001` as an MCP server in your AI client
+
+### Available Tools
+
+#### `list_requests`
+List all saved requests in your collection.
+
+```json
+{
+  "name": "list_requests"
+}
+```
+
+**Response:** Array of requests with id, title, method, url, and group.
+
+#### `get_request`
+Retrieve details of a specific request.
+
+```json
+{
+  "name": "get_request",
+  "arguments": {
+    "group": "global",
+    "name": "Authz token (Ticket QA)"
+  }
+}
+```
+
+#### `execute_request`
+Execute a saved request and get the response.
+
+```json
+{
+  "name": "execute_request",
+  "arguments": {
+    "group": "global",
+    "name": "Authz token (Ticket QA)",
+    "environment": "staging"
+  }
+}
+```
+
+**Parameters:**
+- `group` (required) - The request group name
+- `name` (required) - The request title
+- `environment` (optional) - Variable group to use (overrides request group; defaults to request group or "global")
+
+**Response:** Status code, headers, response body, script output, and request duration.
+
+### Example Usage in Claude
+
+```
+Execute the "Authz token (Ticket QA)" request from the global group using the "staging" environment variables.
+```
+
+The MCP server will:
+1. Find the saved request
+2. Apply variables from the specified environment group
+3. Execute pre-request scripts
+4. Send the HTTP request
+5. Execute post-request scripts
+6. Return the complete response
+
 ## 🚀 Getting Started
 
 To use the client, follow these steps:

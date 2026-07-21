@@ -12,6 +12,7 @@ const STORAGE_KEYS = {
   ACTIVE_GROUPS: 'restClient.activeGroups',
   GROUP_NAMES: 'restClient.groupNames', // Store all group names (including empty ones)
   TAB_SESSIONS: 'restClient.tabSessions',
+  MCP_SETTINGS: 'restClient.mcpSettings',
 };
 
 // Default group name
@@ -512,6 +513,35 @@ function loadTabSessions() {
   }
 }
 
+// --- MCP Settings Management ---
+
+/**
+ * Gets MCP server settings from localStorage.
+ * @return {Object} { enabled: boolean, port: number }
+ */
+function getMcpSettings() {
+  try {
+    const jsonString = localStorage.getItem(STORAGE_KEYS.MCP_SETTINGS);
+    const defaults = { enabled: false, port: 3001 };
+    return jsonString ? { ...defaults, ...JSON.parse(jsonString) } : defaults;
+  } catch (error) {
+    console.error('Error loading MCP settings', error);
+    return { enabled: false, port: 3001 };
+  }
+}
+
+/**
+ * Saves MCP server settings to localStorage.
+ * @param {Object} settings - { enabled: boolean, port: number }
+ */
+function saveMcpSettings(settings) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.MCP_SETTINGS, JSON.stringify(settings));
+  } catch (error) {
+    console.error('Error saving MCP settings', error);
+  }
+}
+
 /**
  * Public interface for the storage module.
  */
@@ -534,5 +564,7 @@ export {
   saveGroupNames,
   renameGroup,
   saveTabSessions,
-  loadTabSessions
+  loadTabSessions,
+  getMcpSettings,
+  saveMcpSettings
 };

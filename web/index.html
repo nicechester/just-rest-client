@@ -29,9 +29,16 @@
 </head>
 <body class="h-screen flex flex-col overflow-hidden bg-gray-50">
     <!-- Sticky Header -->
-    <header class="flex-shrink-0 flex items-center gap-3 px-4 md:px-8 py-4 border-b bg-white shadow-sm">
-        <img id="app-icon" src="just.png" alt="Just REST Client Icon" class="h-9 w-9 rounded-lg shadow-md cursor-pointer hover:shadow-lg transition duration-150" title="About Just REST Client">
-        <h1 class="text-3xl font-bold text-gray-800">Just REST Client</h1>
+    <header class="flex-shrink-0 flex items-center justify-between px-4 md:px-8 py-4 border-b bg-white shadow-sm">
+        <div class="flex items-center gap-3">
+            <img id="app-icon" src="just.png" alt="Just REST Client Icon" class="h-9 w-9 rounded-lg shadow-md cursor-pointer hover:shadow-lg transition duration-150" title="About Just REST Client">
+            <h1 class="text-3xl font-bold text-gray-800">Just REST Client</h1>
+        </div>
+        <button id="settings-btn" class="text-gray-600 hover:text-gray-800 transition duration-150" title="Settings">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0-2c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6 2.69-6 6-6zm8.72-1.54L17 2.5c-.4-1.02-1.48-1.66-2.6-1.48-1.02.15-1.82.93-2.02 1.98-.2 1.05.27 2.12 1.23 2.64l3.76 2.16c.37.21.82.21 1.19 0l3.76-2.16c.96-.52 1.43-1.59 1.23-2.64-.2-1.05-1-1.83-2.02-1.98zM12 20c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/>
+            </svg>
+        </button>
     </header>
 
     <!-- Main Content Area (fills remaining height) -->
@@ -315,22 +322,72 @@
             <h2 class="text-3xl font-bold text-gray-800 mb-2">Just REST Client</h2>
             <p class="text-gray-600 text-sm mb-1">A simple and powerful REST API testing tool</p>
             <p class="text-gray-500 text-xs mb-4">Version 1.1.8</p>
-            
+
             <button id="github-link-btn" class="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-medium mb-6 transition duration-150 cursor-pointer">
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/>
                 </svg>
                 View on GitHub
             </button>
-            
+
             <div class="border-t border-blue-300 pt-4 mb-6">
                 <p class="text-gray-700 font-medium mb-1">Created by</p>
                 <p class="text-2xl font-bold text-blue-700">Chester Kim</p>
             </div>
-            
+
             <button id="about-close" class="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150 font-medium shadow-md">
                 OK
             </button>
+        </div>
+    </div>
+
+    <!-- Settings Dialog -->
+    <div id="settings-dialog" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-md mx-4 shadow-xl">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Settings</h2>
+
+            <!-- Desktop-only notice -->
+            <div id="mcp-browser-notice" class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-6 text-sm text-yellow-800 hidden">
+                <p class="font-medium mb-1">Desktop Only</p>
+                <p>MCP server is only available in the desktop application.</p>
+            </div>
+
+            <!-- MCP Server Settings -->
+            <div id="mcp-settings-section" class="mb-6 pb-6 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">MCP Server</h3>
+
+                <!-- Enable Toggle -->
+                <div class="flex items-center justify-between mb-4">
+                    <label class="text-gray-700 font-medium">Enable MCP Server</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="mcp-enable-toggle" class="sr-only peer" onchange="window.app.handleMcpToggle(event)">
+                        <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
+
+                <!-- Port Input -->
+                <div class="mb-4">
+                    <label for="mcp-port-input" class="block text-gray-700 font-medium mb-1">Port</label>
+                    <input type="number" id="mcp-port-input" min="1024" max="65535" class="w-full p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <!-- Status -->
+                <div class="mb-2">
+                    <p class="text-xs text-gray-600 font-medium mb-1">Status</p>
+                    <div id="mcp-status-text" class="text-sm text-gray-600 p-2 bg-gray-50 rounded">
+                        Initializing...
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <div id="mcp-error-message" class="hidden text-sm text-red-600 p-2 bg-red-50 rounded mt-2"></div>
+            </div>
+
+            <div class="flex justify-end">
+                <button id="settings-close" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150 font-medium">
+                    Close
+                </button>
+            </div>
         </div>
     </div>
 </body>

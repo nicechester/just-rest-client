@@ -29,7 +29,9 @@ import {
     saveGroupNames,
     renameGroup,
     saveTabSessions,
-    loadTabSessions
+    loadTabSessions,
+    getMcpSettings,
+    saveMcpSettings
 } from './storage.js';
 
 import { 
@@ -46,9 +48,23 @@ import {
     executePreScript
 } from './scripting.js';
 
-import { 
+import {
     executeRequest
 } from './request.js';
+
+// Tauri API lazy loader
+let tauriInvoke = null;
+let tauriListen = null;
+async function getTauriApi() {
+    if (!window.__TAURI__) return null;
+    if (!tauriInvoke) {
+        const { invoke: _invoke } = await import('@tauri-apps/api/core');
+        const { listen: _listen } = await import('@tauri-apps/api/event');
+        tauriInvoke = _invoke;
+        tauriListen = _listen;
+    }
+    return { invoke: tauriInvoke, listen: tauriListen };
+}
 
 // --- Global Variable Management Initialization (Moved from original app.js section) ---
 
@@ -487,7 +503,238 @@ const app = {
             dialog.classList.add('hidden');
         }
     },
-    
+
+    // Settings dialog
+    async showSettingsDialog() {
+        const dialog = document.getElementById('settings-dialog');
+        if (dialog) {
+            dialog.classList.remove('hidden');
+        }
+
+        // Populate toggle and port from settings
+        const settings = getMcpSettings();
+        const toggle = document.getElementById('mcp-enable-toggle');
+        const portInput = document.getElementById('mcp-port-input');
+
+        if (toggle) toggle.checked = settings.enabled;
+        if (portInput) portInput.value = settings.port;
+
+        // Check if in browser or desktop mode
+        const isBrowser = !window.__TAURI__;
+        const browserNotice = document.getElementById('mcp-browser-notice');
+        const mcpSection = document.getElementById('mcp-settings-section');
+
+        if (browserNotice && mcpSection) {
+            if (isBrowser) {
+                browserNotice.classList.remove('hidden');
+                mcpSection.classList.add('opacity-50', 'pointer-events-none');
+                if (toggle) toggle.disabled = true;
+                if (portInput) portInput.disabled = true;
+            } else {
+                browserNotice.classList.add('hidden');
+                mcpSection.classList.remove('opacity-50', 'pointer-events-none');
+                if (toggle) toggle.disabled = false;
+                if (portInput) portInput.disabled = false;
+            }
+        }
+
+        // Get live MCP status
+        if (window.__TAURI__) {
+            try {
+                const tauriApi = await getTauriApi();
+                if (tauriApi) {
+                    const status = await tauriApi.invoke('get_mcp_status');
+                    this._updateMcpStatusDisplay(status);
+                }
+            } catch (error) {
+                console.error('Error getting MCP status:', error);
+            }
+        }
+    },
+
+    hideSettingsDialog() {
+        const dialog = document.getElementById('settings-dialog');
+        if (dialog) {
+            dialog.classList.add('hidden');
+        }
+    },
+
+    _updateMcpStatusDisplay(status) {
+        const statusText = document.getElementById('mcp-status-text');
+        const errorMessage = document.getElementById('mcp-error-message');
+
+        if (statusText) {
+            if (status.enabled) {
+                statusText.textContent = `Running on http://127.0.0.1:${status.port}`;
+                statusText.className = 'text-sm text-green-600 p-2 bg-green-50 rounded';
+            } else {
+                statusText.textContent = 'Not enabled';
+                statusText.className = 'text-sm text-gray-600 p-2 bg-gray-50 rounded';
+            }
+        }
+
+        if (errorMessage) {
+            if (status.error) {
+                errorMessage.textContent = status.error;
+                errorMessage.classList.remove('hidden');
+            } else {
+                errorMessage.classList.add('hidden');
+            }
+        }
+    },
+
+    async handleMcpToggle(event) {
+        if (!window.__TAURI__) return;
+
+        try {
+            const tauriApi = await getTauriApi();
+            if (!tauriApi) return;
+
+            const enabled = event.target.checked;
+            const portInput = document.getElementById('mcp-port-input');
+            const port = parseInt(portInput?.value || '3001', 10);
+
+            // Call Tauri command
+            const result = await tauriApi.invoke('set_mcp_enabled', { enabled, port });
+
+            // Persist settings only on success
+            saveMcpSettings({ enabled, port });
+
+            // Update status display
+            if (result) {
+                this._updateMcpStatusDisplay(result);
+            }
+        } catch (error) {
+            console.error('Error toggling MCP:', error);
+
+            // Show error message
+            const errorMessage = document.getElementById('mcp-error-message');
+            if (errorMessage) {
+                errorMessage.textContent = error.message || 'Failed to toggle MCP';
+                errorMessage.classList.remove('hidden');
+            }
+
+            // Revert toggle
+            const toggle = document.getElementById('mcp-enable-toggle');
+            if (toggle) {
+                toggle.checked = !toggle.checked;
+            }
+        }
+    },
+
+    async _handleMcpCall(payload) {
+        const { kind, callId, args } = payload;
+        console.log('[MCP Handler] Received call:', { kind, callId, args });
+
+        const tauriApi = await getTauriApi();
+        if (!tauriApi) {
+            console.error('[MCP Handler] tauriApi not available');
+            return;
+        }
+
+        try {
+            let result = null;
+            console.log('[MCP Handler] Processing kind:', kind);
+
+            if (kind === 'list_requests') {
+                console.log('[MCP Handler] Fetching all requests');
+                result = getAllRequests().map(r => ({
+                    id: r.id,
+                    title: r.title,
+                    group: r.group,
+                    method: r.method,
+                    url: r.url
+                }));
+                console.log('[MCP Handler] Requests result:', result.length, 'items');
+            } else if (kind === 'get_request') {
+                const { group, name } = args || {};
+                const requests = getAllRequests();
+                const request = requests.find(r => r.title === name && r.group === group);
+                if (!request) {
+                    throw new Error(`Request not found: ${name} in group ${group}`);
+                }
+                result = {
+                    id: request.id,
+                    title: request.title,
+                    group: request.group,
+                    method: request.method,
+                    url: request.url,
+                    headers: request.headers || [],
+                    body: request.body || ''
+                };
+            } else if (kind === 'execute_request') {
+                const { group, name, environment } = args || {};
+                const requests = getAllRequests();
+                const request = requests.find(r => r.title === name && r.group === group);
+                if (!request) {
+                    throw new Error(`Request not found: ${name} in group ${group}`);
+                }
+
+                // Execute request and capture response
+                result = await new Promise((resolve) => {
+                    const captureResponse = (requestDetails, response, responseData, scriptOutput, processedUrl, duration) => {
+                        resolve({
+                            status: response.status || 'N/A',
+                            statusText: response.statusText || 'N/A',
+                            headers: Object.fromEntries(response.headers?.entries?.() || []),
+                            body: responseData,
+                            scriptOutput: scriptOutput || '',
+                            duration: duration
+                        });
+                    };
+
+                    const rawHeaders = (request.headers || []).filter(h => h.key || h.value);
+                    executeRequest(
+                        request.url,
+                        request.method,
+                        rawHeaders,
+                        request.body,
+                        request.preScriptIds || [],
+                        request.postScriptIds || [],
+                        captureResponse,
+                        environment || group || 'global'
+                    );
+                });
+            }
+
+            if (tauriApi) {
+                await tauriApi.invoke('mcp_bridge_result', { callId, result });
+            }
+        } catch (error) {
+            if (tauriApi) {
+                try {
+                    await tauriApi.invoke('mcp_bridge_result', { callId, error: error.message });
+                } catch (e) {
+                    console.error('[MCP] Failed to send error:', e);
+                }
+            }
+        }
+    },
+
+    /**
+     * Returns all requests data (for MCP server to fetch)
+     * @returns {Array} Array of all requests with full details
+     */
+    async getAllRequestsData() {
+        return getAllRequests();
+    },
+
+    /**
+     * Returns all variables data grouped by group name (for MCP server to fetch)
+     * @returns {Object} Object with structure { groupName: { varKey: varValue } }
+     */
+    async getVariablesData() {
+        return loadVariableStore();
+    },
+
+    /**
+     * Returns all scripts data (for MCP server to fetch)
+     * @returns {Array} Array of all scripts with full details
+     */
+    async getScriptsData() {
+        return getAllScripts();
+    },
+
     // Generate cURL command
     generateCurlCommand() {
         const url = app.elements.urlInput.value || '';
@@ -3242,6 +3489,61 @@ const app = {
         // About dialog listeners - icon click to show About
         document.getElementById('app-icon').onclick = () => app.showAbout();
         document.getElementById('about-close').onclick = () => app.hideAbout();
+
+        // Settings dialog listeners
+        const settingsBtn = document.getElementById('settings-btn');
+        if (settingsBtn) {
+            settingsBtn.onclick = () => app.showSettingsDialog();
+        }
+        const settingsClose = document.getElementById('settings-close');
+        if (settingsClose) {
+            settingsClose.onclick = () => app.hideSettingsDialog();
+        }
+
+        // Auto-start MCP server if enabled in settings
+        if (window.__TAURI__) {
+            (async () => {
+                try {
+                    const tauriApi = await getTauriApi();
+                    if (tauriApi) {
+                        const mcpSettings = getMcpSettings();
+                        if (mcpSettings.enabled) {
+                            try {
+                                const result = await tauriApi.invoke('set_mcp_enabled', {
+                                    enabled: true,
+                                    port: mcpSettings.port || 3001
+                                });
+                                console.log('MCP server auto-started:', result);
+                            } catch (error) {
+                                console.error('Failed to auto-start MCP server:', error);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to auto-start MCP:', error);
+                }
+            })();
+
+            // Setup MCP bridge listener
+            (async () => {
+                try {
+                    const tauriApi = await getTauriApi();
+                    if (tauriApi) {
+                        await tauriApi.listen('mcp:call', async (event) => {
+                            try {
+                                await app._handleMcpCall(event.payload);
+                            } catch (e) {
+                                console.error('[MCP] Handler error:', e);
+                            }
+                        });
+                        console.log('MCP bridge listener setup complete');
+                    }
+                } catch (error) {
+                    console.error('Failed to setup MCP bridge listener:', error);
+                }
+            })();
+        }
+
         document.getElementById('github-link-btn').onclick = async () => {
             const url = 'https://github.com/nicechester/just-rest-client';
             if (window.__TAURI__) {
