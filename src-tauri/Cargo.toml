@@ -1,6 +1,6 @@
 [package]
 name = "just-rest-client"
-version = "1.1.4"
+version = "1.1.8"
 description = "A lightweight REST API client"
 authors = ["Chester Kim"]
 license = "MIT"
@@ -20,6 +20,11 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time", "macros"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+axum = "0.7"
+tower = "0.4"
+reqwest = { version = "0.11", features = ["json"] }
 
 [features]
 # This feature is used for production builds or when `devPath` points to the filesystem
