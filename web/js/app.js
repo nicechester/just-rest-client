@@ -659,7 +659,7 @@ const app = {
                     group: request.group,
                     method: request.method,
                     url: request.url,
-                    headers: request.headers || [],
+                    headers: request.rawHeaders || [],
                     body: request.body || ''
                 };
             } else if (kind === 'execute_request') {
@@ -691,7 +691,7 @@ const app = {
                         });
                     };
 
-                    const rawHeaders = (request.headers || []).filter(h => h.key || h.value);
+                    const rawHeaders = (request.rawHeaders || []).filter(h => h.key || h.value);
                     executeRequest(
                         request.url,
                         request.method,
