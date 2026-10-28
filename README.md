@@ -6,7 +6,7 @@
 
 Just REST Client is a lightweight, modern REST API client built to test and interact with RESTful APIs. It features variable templating, configurable HTTP methods, a dedicated response viewer for body, headers, and script output, and an intuitive interface with resizable panes, type-ahead search, and smart script selection.
 
-🌐 **Homepage**: [https://nicechester.github.io/just-rest-client/](https://nicechester.github.io/just-rest-client/)
+🌐 **Homepage**: [https://nicechester.github.io/just-rest-client/web/](https://nicechester.github.io/just-rest-client/web/)
 
 ## 🔗 Usage
 
@@ -67,7 +67,7 @@ npm run tauri:build
 - 📦 [POSTMAN_IMPORT.md](POSTMAN_IMPORT.md) - Import Postman collections guide
 - 🏗️ [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture and design
 - 🖥️ [TAURI.md](TAURI.md) - Desktop app setup and Tauri features
-- 🌐 [Homepage](https://nicechester.github.io/just-rest-client/) - Project website
+- 🌐 [Homepage](https://nicechester.github.io/just-rest-client/web/) - Project website
 
 ## ✨ Features
 
