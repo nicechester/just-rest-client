@@ -64,92 +64,54 @@ The app combines web technologies for the UI with native Rust for backend functi
 
 ### Development Mode Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  HOST MACHINE                                               │
-│                                                             │
-│  ┌─────────────────────────────────────────────┐            │
-│  │  Vite Dev Server (Node.js Process)          │            │
-│  │  - Port: 9001                               │            │
-│  │  - Bundles ES modules on-the-fly            │            │
-│  │  - Hot Module Replacement (HMR)             │            │
-│  │  - Resolves node_modules imports            │            │
-│  │  - Source maps for debugging                │            │
-│  └──────────────┬──────────────────────────────┘            │
-│                 │ HTTP                                      │
-│                 │ http://localhost:9001                     │
-│                 ↓                                           │
-│  ┌─────────────────────────────────────────────┐            │
-│  │  Tauri Desktop Application                  │            │
-│  │                                             │            │
-│  │  ┌────────────────────────────────────────┐ │            │
-│  │  │  WebView (System Browser Engine)       │ │            │
-│  │  │                                        │ │            │
-│  │  │  Loads: http://localhost:9001          │ │            │
-│  │  │  - index.html                          │ │            │
-│  │  │  - js/app.js (ESM entry point)         │ │            │
-│  │  │  - js/*.js (modules)                   │ │            │
-│  │  │  - @tauri-apps/plugin-http (from npm)  │ │            │
-│  │  │                                        │ │            │
-│  │  │  JavaScript Context:                   │ │            │
-│  │  │  - window.app (app state/methods)      │ │            │
-│  │  │  - window.__TAURI__ (Tauri bridge)     │ │            │
-│  │  │  - localStorage (persistence)          │ │            │
-│  │  └────────────────────────────────────────┘ │            │
-│  │                 ↕ IPC (Inter-Process Comm)  │            │
-│  │  ┌────────────────────────────────────────┐ │            │
-│  │  │  Rust Backend (Native)                 │ │            │
-│  │  │                                        │ │            │
-│  │  │  - tauri_plugin_http::fetch()          │ │            │
-│  │  │    (uses reqwest - native HTTP client) │ │            │
-│  │  │  - No CORS restrictions!               │ │            │
-│  │  │  - File system access                  │ │            │
-│  │  │  - OS integration                      │ │            │
-│  │  └────────────────────────────────────────┘ │            │
-│  └─────────────────────────────────────────────┘            │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph HOST[HOST MACHINE]
+        subgraph VITE[Vite Dev Server - Node.js]
+            V1[Port: 9001]
+            V2[Bundles ES modules on-the-fly]
+            V3[Hot Module Replacement]
+            V4[Source maps for debugging]
+        end
+        subgraph TAURI[Tauri Desktop Application]
+            subgraph WV[WebView - System Browser Engine]
+                W1["Loads: http://localhost:9001"]
+                W2[index.html + js/app.js]
+                W3[window.app / window.__TAURI__]
+                W4[localStorage]
+            end
+            IPC[IPC - Inter-Process Comm]
+            subgraph RUST[Rust Backend]
+                R1[tauri_plugin_http::fetch]
+                R2[No CORS restrictions]
+                R3[File system / OS integration]
+            end
+        end
+    end
+    VITE -->|HTTP http://localhost:9001| WV
+    WV <-->|IPC| RUST
 ```
 
 ### Production Build Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Just REST Client.app (Single Binary)                       │
-│                                                             │
-│  ┌─────────────────────────────────────────────┐            │
-│  │  WebView (System Browser Engine)            │            │
-│  │                                             │            │
-│  │  Loads: file:///path/to/bundled/files       │            │
-│  │                                             │            │
-│  │  ┌────────────────────────────────────────┐ │            │
-│  │  │  Bundled Web Assets (in app bundle)    │ │            │
-│  │  │                                        │ │            │
-│  │  │  dist/                                 │ │            │
-│  │  │  ├── index.html                        │ │            │
-│  │  │  ├── assets/                           │ │            │
-│  │  │  │   ├── index-[hash].js (bundled!)    │ │            │
-│  │  │  │   │   - All JS modules combined     │ │            │
-│  │  │  │   │   - @tauri-apps/plugin-http     │ │            │
-│  │  │  │   │   - app.js + all modules        │ │            │
-│  │  │  │   └── index-[hash].css              │ │            │
-│  │  │  ├── icons/                            │ │            │
-│  │  │  └── css/                              │ │            │
-│  │  │                                        │ │            │
-│  │  │  NO Node.js - just static files!       │ │            │
-│  │  └────────────────────────────────────────┘ │            │
-│  │                 ↕ IPC                       │            │
-│  │  ┌────────────────────────────────────────┐ │            │
-│  │  │  Rust Backend (Compiled Binary)        │ │            │
-│  │  │                                        │ │            │
-│  │  │  - Tauri runtime                       │ │            │
-│  │  │  - HTTP plugin (reqwest)               │ │            │
-│  │  │  - Shell plugin                        │ │            │
-│  │  │  - All dependencies statically linked  │ │            │
-│  │  └────────────────────────────────────────┘ │            │
-│  └─────────────────────────────────────────────┘            │
-│                                                             │
-│  App Size: ~5-10 MB (vs Electron ~100+ MB)                  │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph APP["Just REST Client.app — Single Binary (~6-11 MB)"] 
+        subgraph WV[WebView - System Browser Engine]
+            subgraph ASSETS[Bundled Web Assets]
+                A1[index.html]
+                A2["assets/index-hash.js — all modules bundled"]
+                A3[assets/index-hash.css]
+            end
+        end
+        IPC[IPC]
+        subgraph RUST[Rust Backend - Compiled Binary]
+            R1[Tauri runtime]
+            R2[HTTP plugin - reqwest]
+            R3[Shell plugin - statically linked]
+        end
+    end
+    WV <-->|IPC| RUST
 ```
 
 ---
@@ -193,17 +155,24 @@ Key Design Patterns:
 
 ### Module Dependencies
 
-```
-app.js (main controller)
-  ├─→ storage.js (persistence)
-  ├─→ variable.js (variable management)
-  │     └─→ storage.js (imports saveVariableStore)
-  ├─→ request.js (HTTP execution)
-  │     ├─→ variable.js (for templating)
-  │     ├─→ scripting.js (for pre/post scripts)
-  │     └─→ @tauri-apps/plugin-http (Tauri HTTP plugin)
-  └─→ scripting.js (script execution sandbox)
-        └─→ variable.js (for setVar() helper)
+```mermaid
+flowchart TD
+    app[app.js - main controller]
+    storage[storage.js - persistence]
+    variable[variable.js - variable management]
+    request[request.js - HTTP execution]
+    scripting[scripting.js - script sandbox]
+    tauri["@tauri-apps/plugin-http"]
+
+    app --> storage
+    app --> variable
+    app --> request
+    app --> scripting
+    variable --> storage
+    request --> variable
+    request --> scripting
+    request --> tauri
+    scripting --> variable
 ```
 
 ### Backend Structure
@@ -240,180 +209,88 @@ src-tauri/
 
 ### 1. Application Initialization Flow
 
-```
-User launches app
-    ↓
-Tauri loads WebView
-    ↓
-WebView loads index.html
-    ↓
-index.html loads js/app.js (ES module)
-    ↓
-app.js imports dependencies:
-    - storage.js
-    - variable.js
-    - request.js
-    - scripting.js
-    ↓
-Variable module loads from localStorage:
-    loadInitialVariables() → loadVariableStore()
-    ↓
-app.init() executes:
-    ├─→ renderVariableStore()     (displays variables)
-    ├─→ renderCollections()        (displays saved requests/scripts)
-    ├─→ renderHeaders()            (initializes header inputs)
-    ├─→ Initialize CodeMirror      (script editors)
-    └─→ Attach event listeners     (buttons, tabs, etc.)
-    ↓
-App ready for user interaction
+```mermaid
+flowchart TD
+    A[User launches app] --> B[Tauri loads WebView]
+    B --> C[WebView loads index.html]
+    C --> D["index.html loads js/app.js"]
+    D --> E["app.js imports storage / variable / request / scripting"]
+    E --> F["loadInitialVariables() → loadVariableStore()"]
+    F --> G["app.init()"]
+    G --> H[renderVariableStore]
+    G --> I[renderCollections]
+    G --> J[renderHeaders]
+    G --> K[Initialize CodeMirror]
+    G --> L[Attach event listeners]
+    H & I & J & K & L --> M[App ready]
 ```
 
 ### 2. Request Execution Flow
 
-```
-User clicks "Send" button
-    ↓
-app.handleSend()
-    ├─→ Reads form values (URL, method, headers, body)
-    ├─→ Gets pre/post script IDs
-    └─→ Calls executeRequest()
-         ↓
-    [request.js]
-    1. Execute Pre-Request Script (if any)
-       executePreScript(preScriptId)
-         ├─→ Load script code from storage
-         ├─→ Create sandbox: new Function('getVar', 'setVar', 'log', 'http', scriptCode)
-         ├─→ Provide helpers:
-         │   - getVar(key) - read variables
-         │   - setVar(key, value) - write variables
-         │   - log(...args) - output logging
-         │   - http(url, options) - make HTTP requests
-         ├─→ Execute script (async/await supported)
-         └─→ setVar() updates variableStore in active group
-    
-    2. Apply Variable Templating
-       applyTemplate(url, headers, body)
-         ├─→ Find {{variableName}} patterns
-         └─→ Replace with values from variableStore
-    
-    3. Execute HTTP Request
-       ┌─ if (Tauri app) ────────────────────────┐
-       │  import { fetch } from '@tauri-apps/plugin-http'
-       │  fetch(url, options)  ← Native Rust HTTP client
-       │  - No CORS restrictions
-       │  - Uses reqwest library
-       │  - Full TLS/SSL support
-       └─────────────────────────────────────────┘
-       ┌─ else (browser) ─────────────────────────┐
-       │  window.fetch(url, options)  ← Browser fetch
-       │  - CORS restrictions apply
-       │  - Limited by browser security
-       └─────────────────────────────────────────┘
-    
-    4. Parse Response
-       ├─→ Check Content-Type header
-       ├─→ If JSON: response.json()
-       └─→ Else: response.text()
-    
-    5. Execute Post-Request Script (if any)
-       executePostScript(postScriptId, response, responseData)
-         ├─→ Load script code
-         ├─→ Create sandbox: new Function('response', 'responseData', 'getVar', 'setVar', 'log', 'http', code)
-         ├─→ Provide helpers:
-         │   - response - HTTP Response object
-         │   - responseData - parsed body (JSON/text)
-         │   - getVar(key) - read variables
-         │   - setVar(key, value) - write variables
-         │   - log(...args) - output logging
-         │   - http(url, options) - make additional requests
-         ├─→ Execute script (async/await supported)
-         └─→ Collect logs and variable updates
-    
-    6. Return Results
-       ↓
-app.displayResponse()
-    ├─→ Display request summary (method, URL, headers)
-    ├─→ Display response (status, headers, body with syntax highlighting)
-    ├─→ Display script output logs
-    └─→ Update variables list if scripts modified variables
+```mermaid
+flowchart TD
+    A["User clicks Send"] --> B["app.handleSend() — reads URL/method/headers/body"]
+    B --> C[executeRequest - request.js]
+    C --> D["1. executePreScript — sandbox with getVar/setVar/log/http"]
+    D --> E["2. applyTemplate — replace {{vars}} in URL/headers/body"]
+    E --> F{Tauri app?}
+    F -->|Yes| G["tauri-apps/plugin-http — native Rust fetch, no CORS"]
+    F -->|No| H[window.fetch — CORS restrictions apply]
+    G & H --> I["3. Parse response — JSON or text"]
+    I --> J["4. executePostScript — sandbox with response/responseData"]
+    J --> K["app.displayResponse() — summary, body, headers, script logs"]
 ```
 
 ### 3. Variable Templating Flow
 
-```
-Input: "{{baseUrl}}/users/{{userId}}"
-       ↓
-applyTemplate() in request.js
-       ↓
-Get flattened variables (global + active group)
-  getFlattenedVariables(activeGroup)
-    ├─→ Load global group variables
-    ├─→ Load active group variables
-    └─→ Merge (active group overrides global)
-       ↓
-Regex: /\{\{(\w+)\}\}/g
-       ↓
-For each match:
-    ├─→ Extract variable name (e.g., "baseUrl", "userId")
-    ├─→ Look up in flattened variableStore
-    └─→ Replace {{name}} with value
-       ↓
-Output: "https://api.example.com/users/123"
-
-Variable Precedence:
-  Active Group > Global Group > undefined
+```mermaid
+flowchart TD
+    A["Input: {{baseUrl}}/users/{{userId}}"] --> B["applyTemplate() — request.js"]
+    B --> C["getFlattenedVariables(activeGroup)"]
+    C --> D[Load global group variables]
+    C --> E[Load active group variables]
+    D & E --> F["Merge — active group overrides global"]
+    F --> G["Regex: /\{\{(\w+)\}\}/g — find all placeholders"]
+    G --> H["Replace each {{name}} with value from store"]
+    H --> I["Output: https://api.example.com/users/123"]
+    note1["Precedence: Active Group > Global > undefined"] -.-> F
 ```
 
 ### 4. Storage Persistence Flow
 
-```
-Variables (Grouped):
-  setVariable(key, value)  [variable.js]
-    ↓
-  variableStore[activeGroup][key] = value
-    ↓
-  saveVariableStore(variableStore)  [storage.js]
-    ↓
-  localStorage.setItem('restClient.variables', JSON.stringify(variableStore))
-  
-  Format: { "global": { "baseUrl": "..." }, "production": { "apiKey": "..." } }
+```mermaid
+flowchart TD
+    subgraph VAR[Variables]
+        V1["setVariable(key, value) — variable.js"]
+        V2["variableStore[activeGroup][key] = value"]
+        V3["saveVariableStore() — storage.js"]
+        V4["localStorage: restClient.variables"]
+        V1 --> V2 --> V3 --> V4
+    end
 
-Requests (with Groups):
-  saveRequest(requestObject)  [storage.js]
-    ↓
-  Load existing: getAllRequests()
-    ↓
-  Ensure group field exists (defaults to 'global')
-    ↓
-  Find by ID or add new
-    ↓
-  saveCollection(STORAGE_KEYS.REQUESTS, requests)
-    ↓
-  localStorage.setItem('restClient.requests', JSON.stringify(requests))
-  
-  Add group to persistent list:
-    addGroupName('requests', requestObject.group)
+    subgraph REQ[Requests]
+        R1["saveRequest(obj) — storage.js"]
+        R2[getAllRequests]
+        R3[Find by ID or add new]
+        R4["localStorage: restClient.requests"]
+        R5["addGroupName('requests', group)"]
+        R1 --> R2 --> R3 --> R4
+        R3 --> R5
+    end
 
-Scripts (with Groups):
-  saveScript(scriptObject)  [storage.js]
-    ↓
-  (Same pattern as requests)
-    ↓
-  Ensure group field and type field ('pre-request' or post)
-    ↓
-  localStorage.setItem('restClient.scripts', JSON.stringify(scripts))
-  
-  Add group to persistent list:
-    addGroupName('scripts', scriptObject.group)
+    subgraph SCR[Scripts]
+        S1["saveScript(obj) — storage.js"]
+        S2["Same pattern as Requests"]
+        S3["localStorage: restClient.scripts"]
+        S1 --> S2 --> S3
+    end
 
-Active Groups:
-  setActiveGroup(type, groupName)  [storage.js]
-    ↓
-  activeGroups[type] = groupName
-    ↓
-  localStorage.setItem('restClient.activeGroups', JSON.stringify(activeGroups))
-  
-  Format: { "variables": "production", "requests": "staging", "scripts": "global" }
+    subgraph GRP[Active Groups]
+        G1["setActiveGroup(type, name)"]
+        G2["activeGroups[type] = name"]
+        G3["localStorage: restClient.activeGroups"]
+        G1 --> G2 --> G3
+    end
 ```
 
 ---
