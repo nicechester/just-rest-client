@@ -6,17 +6,15 @@
 
 Just REST Client is a lightweight, modern REST API client built to test and interact with RESTful APIs. It features variable templating, configurable HTTP methods, a dedicated response viewer for body, headers, and script output, and an intuitive interface with resizable panes, type-ahead search, and smart script selection.
 
-## 🔗 Usage Options
+🌐 **Homepage**: [https://nicechester.github.io/just-rest-client/](https://nicechester.github.io/just-rest-client/)
 
-### Web Version
-You can access the live version of the application here:
-[https://nicechester.github.io/just-rest-client/web/](https://nicechester.github.io/just-rest-client/web/)
+## 🔗 Usage
 
 ### Desktop App (Tauri)
 
 #### Download Pre-Built Binaries
 
-Download the latest version for your platform from the [Releases page](https://github.com/nicechester/just-rest-client/releases). 
+Download the latest version for your platform from the [Releases page](https://github.com/nicechester/just-rest-client/releases).
 
 📋 See the [CHANGELOG](CHANGELOG.md) for detailed release notes and version history.
 
@@ -69,6 +67,7 @@ npm run tauri:build
 - 📦 [POSTMAN_IMPORT.md](POSTMAN_IMPORT.md) - Import Postman collections guide
 - 🏗️ [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture and design
 - 🖥️ [TAURI.md](TAURI.md) - Desktop app setup and Tauri features
+- 🌐 [Homepage](https://nicechester.github.io/just-rest-client/) - Project website
 
 ## ✨ Features
 
@@ -212,7 +211,7 @@ To use the client, follow these steps:
 - **Dynamic Variables**: Execute JavaScript before the request to prepare data
 - **Script Selection**: Use the type-ahead script selector - start typing to filter, use arrow keys to navigate, Enter to select
 - **Smart Filtering**: Only scripts from your active group plus the global group are shown (reduces clutter)
-- **Use Cases**: 
+- **Use Cases**:
   - Generate timestamps or dynamic values
   - Fetch OAuth tokens from auth servers
   - Compute signatures or hashes
@@ -249,14 +248,13 @@ if (response.status === 200) {
 if (response.status === 200) {
   const userId = responseData.id;
   setVar('user_id', userId);
-  
-  // Make follow-up request
+
   const detailsResponse = await http(`https://api.example.com/users/${userId}/details`, {
     headers: {
       'Authorization': `Bearer ${getVar('access_token')}`
     }
   });
-  
+
   setVar('user_name', detailsResponse.data.name);
   log('User loaded:', detailsResponse.data.name);
 }
@@ -283,21 +281,13 @@ if (response.status === 200) {
 
 The Just REST Client is a modern web application designed with modularity in mind, using ES Modules for separation of concerns.
 
-### Project Structure
-
-The JavaScript logic is divided into the following modules:
-
-- **`app.js`**: The main entry point. Handles UI initialization, state management, and event handlers (like the "Send Request" button click). It orchestrates the flow between the UI and the other modules.
-- **`request.js`**: Contains the core logic for executing the fetch request, applying variable templates to the URL and Body, and handling the response and error states.
-- **`variable.js`**: Manages the global variable store, providing `setVariable` and `getVariableStore` functions.
-- **`scripting.js`**: (Placeholder) Responsible for executing the user-defined JavaScript code after the API request is complete.
-- **`storage.js`**: Handles data persistence using `localStorage` for variables, saved requests, and scripts.
-
 ### Technologies Used
 
 - **HTML5 / CSS3**
 - **JavaScript (ES Modules)**
 - **Tailwind CSS**: For utility-first styling and responsive design.
+- **Tauri v2**: Rust-based desktop framework
+- **Vite**: Build tool and dev server
 
 ## 📝 Roadmap
 
