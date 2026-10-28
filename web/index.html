@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Just REST Client</title>
+    <link rel="icon" type="image/png" href="just.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+    <!-- JSON Editor CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/vanilla-jsoneditor/themes/jse-theme-dark.css">
+    <!-- Syntax Highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <!-- CodeMirror CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+    <!-- CodeMirror JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+    <!-- CodeMirror Addons -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module" src="js/app.js"></script>
+</head>
+<body class="h-screen flex flex-col overflow-hidden bg-gray-50">
+    <!-- Sticky Header -->
+    <header class="flex-shrink-0 flex items-center justify-between px-4 md:px-8 py-4 border-b bg-white shadow-sm">
+        <div class="flex items-center gap-3">
+            <img id="app-icon" src="just.png" alt="Just REST Client Icon" class="h-9 w-9 rounded-lg shadow-md cursor-pointer hover:shadow-lg transition duration-150" title="About Just REST Client">
+            <h1 class="text-3xl font-bold text-gray-800">Just REST Client</h1>
+        </div>
+        <button id="settings-btn" class="text-gray-600 hover:text-gray-800 transition duration-150" title="Settings">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0-2c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6 2.69-6 6-6zm8.72-1.54L17 2.5c-.4-1.02-1.48-1.66-2.6-1.48-1.02.15-1.82.93-2.02 1.98-.2 1.05.27 2.12 1.23 2.64l3.76 2.16c.37.21.82.21 1.19 0l3.76-2.16c.96-.52 1.43-1.59 1.23-2.64-.2-1.05-1-1.83-2.02-1.98zM12 20c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/>
+            </svg>
+        </button>
+    </header>
+
+    <!-- Main Content Area (fills remaining height) -->
+    <div id="main-layout" class="flex-1 flex overflow-hidden px-4 md:px-8 py-4">
+
+        <!-- Left Sidebar (Collections/Variables/Scripts - Tabbed) -->
+        <aside id="sidebar" style="width: 33.33%;" class="w-full flex flex-col space-y-4 overflow-hidden">
+            
+            <!-- Sidebar Tab Navigation (Fixed) -->
+            <div class="flex-shrink-0 flex border border-gray-300 rounded-xl shadow-md overflow-hidden bg-white">
+                <button data-tab="variables" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('variables')">
+                    <div class="tab-title">Variables</div>
+                    <div class="tab-group-name text-xs text-gray-400"></div>
+                </button>
+                <button data-tab="requests" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150 border-l border-r border-gray-300" onclick="window.app.switchSidebarTab('requests')">
+                    <div class="tab-title">Requests</div>
+                    <div class="tab-group-name text-xs text-gray-400"></div>
+                </button>
+                <button data-tab="scripts" class="tab-button flex-1 py-3 text-sm font-medium text-center text-gray-600 hover:bg-gray-100 transition duration-150" onclick="window.app.switchSidebarTab('scripts')">
+                    <div class="tab-title">Scripts</div>
+                    <div class="tab-group-name text-xs text-gray-400"></div>
+                </button>
+            </div>
+
+            <!-- Sidebar Tab Content Panel (Scrollable) -->
+            <div class="flex-1 overflow-y-auto bg-white p-4 rounded-xl shadow-lg border border-gray-200 sidebar-scroll">
+                
+                <!-- Variables Tab Content -->
+                <div id="tab-panel-variables" data-panel="variables" class="tab-panel space-y-4">
+                    <h2 class="text-xl font-semibold mb-3 text-gray-700">Environment Variables</h2>
+                    
+                    <!-- Group Selector -->
+                    <div class="flex items-center space-x-2 pb-3 border-b">
+                        <label class="text-xs font-medium text-gray-600">Group:</label>
+                        <select id="variables-group-select" class="flex-1 p-2 border rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500">
+                            <option value="global">global</option>
+                        </select>
+                        <div class="relative inline-flex">
+                            <button id="new-var-group-btn" class="bg-gray-600 text-white px-3 py-2 rounded-l-lg hover:bg-gray-700 transition text-xs" title="Create new group">+ Group</button>
+                            <button id="var-group-menu-btn" class="bg-gray-600 text-white px-2 py-2 rounded-r-lg hover:bg-gray-700 transition text-xs border-l border-gray-500" title="Group actions">▾</button>
+                            <div id="var-group-menu" class="hidden absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                                <button id="rename-var-group-btn" class="w-full text-left px-4 py-2 text-xs hover:bg-blue-50 text-blue-600 rounded-t-lg transition">Rename Group</button>
+                                <button id="delete-var-group-btn" class="w-full text-left px-4 py-2 text-xs hover:bg-red-50 text-red-600 rounded-b-lg transition border-t border-gray-100">Delete Group</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Search Box -->
+                    <div>
+                        <input type="text" id="variable-search-input" placeholder="Search variables by key..." class="w-full p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    
+                    <div id="variables-list" class="space-y-2 text-sm">
+                        <!-- Variables will be rendered here -->
+                    </div>
+                    <div class="mt-4 flex space-x-1">
+                        <input type="text" id="var-key-input" placeholder="Key" class="w-1/3 p-2 border rounded-lg text-sm focus:outline-none">
+                        <input type="text" id="var-value-input" placeholder="Value" class="flex-1 p-2 border rounded-lg text-sm focus:outline-none">
+                        <button id="add-var-btn" class="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition duration-150 text-sm min-w-[70px]">Set</button>
+                    </div>
+                </div>
+
+                <!-- Saved Requests Tab Content -->
+                <div id="tab-panel-requests" data-panel="requests" class="tab-panel hidden space-y-4">
+                    <h2 class="text-xl font-semibold mb-3 text-gray-700">Saved Requests</h2>
+                    
+                    <!-- Group Selector -->
+                    <div class="flex items-center space-x-2 pb-3 border-b">
+                        <label class="text-xs font-medium text-gray-600">Group:</label>
+                        <select id="requests-group-select" class="flex-1 p-2 border rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500">
+                            <option value="global">global</option>
+                        </select>
+                        <div class="relative inline-flex">
+                            <button id="new-request-group-btn" class="bg-gray-600 text-white px-3 py-2 rounded-l-lg hover:bg-gray-700 transition text-xs" title="Create new group">+ Group</button>
+                            <button id="request-group-menu-btn" class="bg-gray-600 text-white px-2 py-2 rounded-r-lg hover:bg-gray-700 transition text-xs border-l border-gray-500" title="Group actions">▾</button>
+                            <div id="request-group-menu" class="hidden absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                                <button id="rename-request-group-btn" class="w-full text-left px-4 py-2 text-xs hover:bg-blue-50 text-blue-600 rounded-t-lg transition">Rename Group</button>
+                                <button id="delete-request-group-btn" class="w-full text-left px-4 py-2 text-xs hover:bg-red-50 text-red-600 rounded-b-lg transition border-t border-gray-100">Delete Group</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Search Box -->
+                    <div>
+                        <input type="text" id="request-search-input" placeholder="Search requests by title..." class="w-full p-2 border rounded-lg text-sm focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    
+                    <div id="requests-list" class="space-y-2 text-sm">
+                        <!-- Saved requests will be loaded here -->
+                        <p class="text-gray-500">No requests saved.</p>
+                    </div>
+                </div>
+                
+                <!-- Saved Scripts Tab Content -->
+                <div id="tab-panel-scripts" data-panel="scripts" class="tab-panel hidden space-y-4">
+                    <h2 class="text-xl font-semibold mb-3 text-gray-700">Saved Scripts</h2>
+                    
+                    <!-- Group Selector -->
+                    <div class="flex items-center space-x-2 pb-3 border-b">
+                        <label class="text-xs font-medium text-gray-600">Group:</label>
+                        <select id="scripts-group-select" class="flex-1 p-2 border rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500">
+                            <option value="global">global</option>
+                        </select>
+                        <div class="relative inline-flex">
+                            <button id="new-script-group-btn" class="bg-gray-600 text-white px-3 py-2 rounded-l-lg hover:bg-gray-700 transition text-xs" title="Create new group">+ Group</button>
+                            <button id="script-group-menu-btn" class="bg-gray-600 text-white px-2 py-2 rounded-r-lg hover:bg-gray-700 transition text-xs border-l border-gray-500" title="Group actions">▾</button>
+                            <div id="script-group-menu" class="hidden absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                                <button id="rename-script-group-btn" class="w-full text-left px-4 py-2 text-xs hover:bg-blue-50 text-blue-600 rounded-t-lg transition">Rename Group</button>
+                                <button id="delete-script-group-btn" class="w-full text-left px-4 py-2 text-xs hover:bg-red-50 text-red-600 rounded-b-lg transition border-t border-gray-100">Delete Group</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Search Box -->
+                    <div>
+                        <input type="text" id="script-search-input" placeholder="Search scripts by name..." class="w-full p-2 border rounded-lg text-sm focus:ring-purple-500 focus:border-purple-500">
+                    </div>
+                    
+                    <div id="scripts-list" class="space-y-2 text-sm">
+                        <!-- Saved scripts will be loaded here -->
+                        <p class="text-gray-500">No scripts saved.</p>
+                    </div>
+                    
+                    <!-- Add New Script -->
+                    <div class="mt-4 pt-4 border-t">
+                        <button id="add-script-btn" class="w-full bg-purple-600 text-white p-2 rounded-lg hover:bg-purple-700 transition duration-150 text-sm font-medium">+ Add New Script</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export/Import (Fixed at bottom) -->
+            <div class="flex-shrink-0 bg-white p-4 rounded-xl shadow-lg border border-gray-200 flex space-x-2">
+                <button id="export-btn" class="flex-1 bg-green-500 text-white p-3 rounded-lg hover:bg-green-600 transition">Export All</button>
+                <input type="file" id="import-file" accept="application/json" class="hidden" onchange="window.app.handleImport(event)">
+                <input type="file" id="import-postman-file" accept="application/json,.json" class="hidden" onchange="window.app.handlePostmanImport(event)">
+                
+                <!-- Import Split Button -->
+                <div class="flex-1 relative">
+                    <div class="flex">
+                        <!-- Main action button (Import JSON) -->
+                        <button id="sidebar-import-main-btn" class="flex-1 bg-yellow-500 text-white p-3 rounded-l-lg hover:bg-yellow-600 transition">
+                            Import
+                        </button>
+                        <!-- Dropdown toggle button -->
+                        <button id="sidebar-import-dropdown-btn" class="bg-yellow-500 text-white px-2 rounded-r-lg hover:bg-yellow-600 transition border-l border-yellow-600 flex items-center">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                    <!-- Dropdown menu (opens upward since it's at the bottom of sidebar) -->
+                    <div id="sidebar-import-dropdown-menu" class="hidden absolute left-0 bottom-full mb-2 w-full bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                        <button id="import-postman-btn" class="w-full text-left px-4 py-3 hover:bg-gray-100 text-gray-700 font-medium flex items-center space-x-2 rounded-lg">
+                            <span class="text-purple-600">📦</span>
+                            <span>Import Postman</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- Vertical Resize Handle -->
+        <div id="vertical-resize-handle" class="vertical-resize-handle">
+            <div class="resize-indicator"></div>
+        </div>
+
+        <!-- Right Main Area (Multi-Tab Request/Result) -->
+        <main id="main-content" class="flex-1 flex flex-col overflow-hidden min-w-0">
+
+            <!-- Tab Bar -->
+            <div id="request-tab-bar" class="request-tab-bar flex-shrink-0 shadow-sm">
+                <button id="tab-overflow-left" class="tab-overflow-indicator hidden" title="Scroll left">‹</button>
+                <!-- tabs rendered by JS -->
+                <button id="new-tab-btn" class="request-tab-add" title="New tab">+</button>
+                <button id="tab-overflow-indicator" class="tab-overflow-indicator hidden" title="More tabs">›</button>
+            </div>
+
+            <!-- Tab Panels Container -->
+            <div id="request-tab-panels" class="flex-1 overflow-hidden min-h-0">
+                <!-- panels rendered by JS -->
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Confirmation Dialog -->
+    <div id="confirm-dialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl">
+            <h3 class="text-lg font-semibold mb-2">Confirm Delete</h3>
+            <p id="confirm-message" class="text-gray-600 mb-4"></p>
+            <div class="flex justify-end space-x-2">
+                <button id="confirm-cancel" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">Cancel</button>
+                <button id="confirm-ok" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Input Dialog (for creating groups) -->
+    <div id="input-dialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl">
+            <h3 id="input-dialog-title" class="text-lg font-semibold mb-2">Enter Value</h3>
+            <p id="input-dialog-message" class="text-gray-600 text-sm mb-3"></p>
+            <input type="text" id="input-dialog-input" class="w-full p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 mb-4" placeholder="">
+            <div class="flex justify-end space-x-2">
+                <button id="input-dialog-cancel" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">Cancel</button>
+                <button id="input-dialog-ok" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- cURL Command Dialog -->
+    <div id="curl-dialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-3xl w-full mx-4 shadow-xl">
+            <h3 class="text-lg font-semibold mb-3">cURL Command</h3>
+            <pre id="curl-command" class="bg-gray-900 text-green-400 p-4 rounded-lg text-xs font-mono overflow-x-auto whitespace-pre-wrap mb-4 max-h-96 overflow-y-auto"></pre>
+            <div class="flex justify-end space-x-2">
+                <button id="curl-copy" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">Copy to Clipboard</button>
+                <button id="curl-close" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import cURL Dialog -->
+    <div id="import-curl-dialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-3xl w-full mx-4 shadow-xl">
+            <h3 class="text-lg font-semibold mb-3">Import from cURL</h3>
+            <p class="text-sm text-gray-600 mb-3">Paste your cURL command below. We'll extract the URL, method, headers, and body.</p>
+            <textarea id="import-curl-input" class="w-full h-48 p-3 border rounded-lg text-sm font-mono focus:ring-blue-500 focus:border-blue-500 resize-vertical" placeholder="curl -X POST https://api.example.com/endpoint \&#10;  -H 'Content-Type: application/json' \&#10;  -d '{&quot;key&quot;: &quot;value&quot;}'"></textarea>
+            <div class="flex justify-end space-x-2 mt-4">
+                <button id="import-curl-cancel" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">Cancel</button>
+                <button id="import-curl-parse" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">Import</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Editor Dialog -->
+    <div id="script-editor-dialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 shadow-xl" style="max-height: 90vh; overflow-y: auto;">
+            <h3 class="text-lg font-semibold mb-4">Script Editor</h3>
+            
+            <!-- Script Name -->
+            <div class="mb-4">
+                <label class="text-xs font-medium text-gray-600 block mb-1">Script Name</label>
+                <input type="text" id="script-editor-name" placeholder="My Script" class="w-full p-2 border rounded-lg text-sm focus:ring-purple-500 focus:border-purple-500">
+            </div>
+            
+            <!-- Script Code Editor -->
+            <div class="mb-4">
+                <label class="text-xs font-medium text-gray-600 block mb-1">Script Code</label>
+                <textarea id="script-editor-code" class="w-full p-3 border rounded-lg text-sm font-mono focus:ring-purple-500 focus:border-purple-500 resize-vertical" rows="15" placeholder="// Write your script here
+// Available functions:
+// - getVariable(key) - Get variable value
+// - setVariable(key, value) - Set variable value  
+// - http(url, options) - Make HTTP request
+// - log(...args) - Log messages
+// 
+// For post-request scripts, you also have:
+// - response - The response object
+// - data - The parsed response body"></textarea>
+            </div>
+            
+            <div class="flex justify-between items-center">
+                <div class="text-xs text-gray-500">
+                    <button id="view-scripting-docs-btn" class="text-purple-600 hover:underline cursor-pointer">View Scripting Documentation</button>
+                </div>
+                <div class="flex space-x-2">
+                    <button id="script-editor-cancel" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">Cancel</button>
+                    <button id="script-editor-save" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition">Save Script</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- About Dialog / Splash Screen -->
+    <div id="about-dialog" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+        <div class="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-8 max-w-md mx-4 shadow-2xl border-2 border-blue-200 text-center transform transition-all">
+            <div class="mb-6">
+                <img src="just.png" alt="Just REST Client Icon" class="h-24 w-24 mx-auto rounded-2xl shadow-lg">
+            </div>
+            <h2 class="text-3xl font-bold text-gray-800 mb-2">Just REST Client</h2>
+            <p class="text-gray-600 text-sm mb-1">A simple and powerful REST API testing tool</p>
+            <p class="text-gray-500 text-xs mb-4">Version 1.2.0</p>
+
+            <button id="github-link-btn" class="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-medium mb-6 transition duration-150 cursor-pointer">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/>
+                </svg>
+                View on GitHub
+            </button>
+
+            <div class="border-t border-blue-300 pt-4 mb-6">
+                <p class="text-gray-700 font-medium mb-1">Created by</p>
+                <p class="text-2xl font-bold text-blue-700">Chester Kim</p>
+            </div>
+
+            <button id="about-close" class="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150 font-medium shadow-md">
+                OK
+            </button>
+        </div>
+    </div>
+
+    <!-- Settings Dialog -->
+    <div id="settings-dialog" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-md mx-4 shadow-xl">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Settings</h2>
+
+            <!-- Desktop-only notice -->
+            <div id="mcp-browser-notice" class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-6 text-sm text-yellow-800 hidden">
+                <p class="font-medium mb-1">Desktop Only</p>
+                <p>MCP server is only available in the desktop application.</p>
+            </div>
+
+            <!-- MCP Server Settings -->
+            <div id="mcp-settings-section" class="mb-6 pb-6 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">MCP Server</h3>
+
+                <!-- Enable Toggle -->
+                <div class="flex items-center justify-between mb-4">
+                    <label class="text-gray-700 font-medium">Enable MCP Server</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="mcp-enable-toggle" class="sr-only peer" onchange="window.app.handleMcpToggle(event)">
+                        <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
+
+                <!-- Port Input -->
+                <div class="mb-4">
+                    <label for="mcp-port-input" class="block text-gray-700 font-medium mb-1">Port</label>
+                    <input type="number" id="mcp-port-input" min="1024" max="65535" class="w-full p-2 border rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <!-- Status -->
+                <div class="mb-2">
+                    <p class="text-xs text-gray-600 font-medium mb-1">Status</p>
+                    <div id="mcp-status-text" class="text-sm text-gray-600 p-2 bg-gray-50 rounded">
+                        Initializing...
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <div id="mcp-error-message" class="hidden text-sm text-red-600 p-2 bg-red-50 rounded mt-2"></div>
+            </div>
+
+            <div class="flex justify-end">
+                <button id="settings-close" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150 font-medium">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
