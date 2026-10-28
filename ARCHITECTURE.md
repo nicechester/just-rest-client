@@ -96,7 +96,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    subgraph APP["Just REST Client.app — Single Binary (~6-11 MB)"] 
+    subgraph APP[Just REST Client app - Single Binary 6-11 MB]
         subgraph WV[WebView - System Browser Engine]
             subgraph ASSETS[Bundled Web Assets]
                 A1[index.html]
