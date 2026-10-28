@@ -264,14 +264,6 @@ Switch between them using the group dropdown!
 
 ---
 
-## Additional Resources
-
-- 📖 [SCRIPTING.md](SCRIPTING.md) - Complete scripting guide with examples
-- 🏗️ [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture details
-- 🖥️ [TAURI.md](TAURI.md) - Desktop app setup and features
-
----
-
 **Happy importing! 🚀**
 
 Questions or issues? Check the browser console for detailed error messages.

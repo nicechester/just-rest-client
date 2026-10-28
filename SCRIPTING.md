@@ -893,7 +893,6 @@ log(response.data);
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** December 2024  
-**See Also:** [ARCHITECTURE.md](ARCHITECTURE.md) | [TAURI.md](TAURI.md) | [README.md](README.md)
+**Document Version:** 2.0
+**Last Updated:** October 2026
 
