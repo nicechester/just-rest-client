@@ -1,3 +1,5 @@
+[![Build](https://github.com/nicechester/just-rest-client/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/nicechester/just-rest-client/actions/workflows/build.yml) [![Pages](https://github.com/nicechester/just-rest-client/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/nicechester/just-rest-client/actions/workflows/pages.yml)
+
 # Just REST Client
 
 <div align="center">
